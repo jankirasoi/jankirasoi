@@ -8,13 +8,21 @@ export class DeliveryZonesController {
   constructor(private readonly zonesService: DeliveryZonesService) {}
 
   @Get('check')
-  @ApiOperation({ summary: 'Check pincode serviceability and delivery fee' })
-  @ApiQuery({ name: 'pincode', required: true, example: '110017' })
-  async checkPincode(@Query('pincode') pincode: string) {
+  @ApiOperation({ summary: 'Check pincode and distance serviceability from Sagore Kitchen' })
+  @ApiQuery({ name: 'pincode', required: true, example: '454774' })
+  @ApiQuery({ name: 'lat', required: false, example: '22.6288' })
+  @ApiQuery({ name: 'lng', required: false, example: '75.5684' })
+  async checkPincode(
+    @Query('pincode') pincode: string,
+    @Query('lat') lat?: string,
+    @Query('lng') lng?: string,
+  ) {
     if (!pincode || !/^[1-9][0-9]{5}$/.test(pincode)) {
       throw new BadRequestException('Please provide a valid 6-digit Indian PIN code.');
     }
-    return this.zonesService.checkPincode(pincode);
+    const parsedLat = lat ? parseFloat(lat) : undefined;
+    const parsedLng = lng ? parseFloat(lng) : undefined;
+    return this.zonesService.checkPincode(pincode, parsedLat, parsedLng);
   }
 
   @Get()

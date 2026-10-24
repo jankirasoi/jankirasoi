@@ -202,25 +202,25 @@ export default function RiderPage() {
   const displayList = activeTab === 'ACTIVE' ? activeDeliveries : completedDeliveries;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col font-body pb-12 selection:bg-orange-500">
+    <div className="min-h-screen bg-[#FFF9F0] text-[#292D26] flex flex-col font-body pb-16 selection:bg-[#38754A] selection:text-white">
       {/* Top Rider Header */}
-      <header className="sticky top-0 z-30 bg-slate-800/95 backdrop-blur-md border-b border-slate-700 px-4 py-3">
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#EEE7DC] px-4 py-3 shadow-2xs">
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <span className="w-9 h-9 rounded-full bg-orange-600 text-white font-bold flex items-center justify-center text-sm shadow-md">
+            <span className="w-9 h-9 rounded-full bg-[#38754A] text-white font-bold flex items-center justify-center text-sm shadow-xs">
               JR
             </span>
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="font-headline font-bold text-base leading-tight">Janki Rasoi Rider</h1>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                  PWA
+                <h1 className="font-headline font-bold text-base text-[#292D26] leading-tight">Janki Rasoi Rider</h1>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#EAF4ED] text-[#38754A] border border-[#38754A]/30">
+                  PARTNER PWA
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-[#77786F]">
                 {riderUser
                   ? `${riderUser.name} • ${riderUser.riderProfile?.vehicleNumber || 'DL-01-AB-1234'}`
-                  : 'Rider Authentication Portal'}
+                  : 'Delivery Partner Portal'}
               </p>
             </div>
           </div>
@@ -230,13 +230,13 @@ export default function RiderPage() {
               {/* Duty Status Toggle */}
               <button
                 onClick={() => setIsOnDuty(!isOnDuty)}
-                className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 transition-colors border ${
+                className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 transition-colors border shadow-2xs ${
                   isOnDuty
-                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                    : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                    ? 'bg-[#EAF4ED] text-[#38754A] border-[#38754A]/30'
+                    : 'bg-rose-50 text-rose-700 border-rose-200'
                 }`}
               >
-                <span className={`w-2 h-2 rounded-full ${isOnDuty ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
+                <span className={`w-2 h-2 rounded-full ${isOnDuty ? 'bg-[#38754A] animate-pulse' : 'bg-rose-500'}`}></span>
                 {isOnDuty ? 'ON DUTY' : 'OFFLINE'}
               </button>
 
@@ -245,7 +245,7 @@ export default function RiderPage() {
                 onClick={() => loadDeliveries()}
                 disabled={isRefreshing}
                 aria-label="Refresh deliveries"
-                className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all"
+                className="w-8 h-8 rounded-full bg-white border border-[#EEE7DC] flex items-center justify-center text-[#77786F] hover:text-[#292D26] shadow-2xs active:scale-95 transition-all"
               >
                 <span className={`material-symbols-outlined text-[18px] ${isRefreshing ? 'animate-spin' : ''}`}>
                   refresh
@@ -256,7 +256,7 @@ export default function RiderPage() {
               <button
                 onClick={handleRiderLogout}
                 title="End Shift / Logout"
-                className="w-8 h-8 rounded-full bg-slate-700/80 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-full bg-white border border-[#EEE7DC] hover:bg-rose-50 text-[#77786F] hover:text-rose-600 flex items-center justify-center transition-colors shadow-2xs"
               >
                 <span className="material-symbols-outlined text-[18px]">logout</span>
               </button>
@@ -264,10 +264,10 @@ export default function RiderPage() {
           ) : (
             <Link
               href="/"
-              className="text-xs text-orange-400 hover:underline flex items-center gap-1 font-semibold"
+              className="text-xs text-[#38754A] hover:text-[#285C38] flex items-center gap-1 font-bold bg-[#EAF4ED] px-3 py-1.5 rounded-full border border-[#38754A]/20 transition-colors shadow-2xs"
             >
               <span>Storefront</span>
-              <span>→</span>
+              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
             </Link>
           )}
         </div>
@@ -276,26 +276,27 @@ export default function RiderPage() {
       {/* Unauthenticated State: Show Clean Rider Login Screen */}
       {!riderUser && !authChecking ? (
         <main className="flex-1 max-w-md mx-auto w-full px-4 py-8 flex flex-col justify-center">
-          <div className="bg-slate-800 border border-slate-700 rounded-3xl p-6 shadow-2xl space-y-5">
+          <div className="bg-white border border-[#EEE7DC] rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
             <div className="text-center space-y-2">
-              <div className="w-16 h-16 rounded-2xl bg-orange-600/20 border border-orange-500/40 text-orange-400 flex items-center justify-center mx-auto text-3xl">
+              <div className="w-16 h-16 rounded-2xl bg-[#EAF4ED] border border-[#38754A]/20 text-[#38754A] flex items-center justify-center mx-auto text-3xl shadow-xs">
                 🛵
               </div>
-              <h2 className="font-headline font-bold text-xl text-white">Rider Shift Sign-in</h2>
-              <p className="text-xs text-slate-400">
+              <h2 className="font-headline font-bold text-xl text-[#292D26]">Rider Shift Sign-in</h2>
+              <p className="text-xs text-[#77786F] leading-relaxed">
                 Enter your registered rider mobile number and credentials to access delivery assignments.
               </p>
             </div>
 
             {loginError && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 font-medium">
-                {loginError}
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-rose-500">error</span>
+                <span>{loginError}</span>
               </div>
             )}
 
             <form onSubmit={handleRiderLoginSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-[#292D26] uppercase tracking-wider mb-1.5">
                   Rider Phone Number
                 </label>
                 <input
@@ -303,13 +304,13 @@ export default function RiderPage() {
                   value={loginPhone}
                   onChange={(e) => setLoginPhone(e.target.value)}
                   placeholder="9811223344"
-                  className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-sm font-semibold text-white focus:border-orange-500 focus:outline-none"
+                  className="w-full px-4 py-3 bg-[#FFF9F0] border border-[#EEE7DC] rounded-xl text-sm font-semibold text-[#292D26] placeholder-[#77786F] focus:border-[#38754A] focus:bg-white focus:outline-none transition-all shadow-2xs"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-[#292D26] uppercase tracking-wider mb-1.5">
                   Shift Password / PIN
                 </label>
                 <input
@@ -317,7 +318,7 @@ export default function RiderPage() {
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-sm font-semibold text-white focus:border-orange-500 focus:outline-none"
+                  className="w-full px-4 py-3 bg-[#FFF9F0] border border-[#EEE7DC] rounded-xl text-sm font-semibold text-[#292D26] placeholder-[#77786F] focus:border-[#38754A] focus:bg-white focus:outline-none transition-all shadow-2xs"
                   required
                 />
               </div>
@@ -325,14 +326,14 @@ export default function RiderPage() {
               <button
                 type="submit"
                 disabled={loginLoading}
-                className="w-full py-3.5 bg-orange-600 hover:bg-orange-500 text-white font-bold text-sm rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3.5 bg-[#38754A] hover:bg-[#285C38] active:scale-98 text-white font-bold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center gap-2"
               >
                 {loginLoading ? (
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
                     <span>Start Delivery Shift</span>
-                    <span>→</span>
+                    <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
                   </>
                 )}
               </button>
@@ -342,10 +343,12 @@ export default function RiderPage() {
                 onClick={() => {
                   setLoginPhone('9811223344');
                   setLoginPassword('RiderPassword123!');
+                  setLoginError(null);
                 }}
-                className="w-full py-2 bg-slate-700/50 hover:bg-slate-700 text-xs text-slate-300 font-semibold rounded-xl border border-slate-600 transition-colors"
+                className="w-full py-2.5 bg-[#FFF9F0] hover:bg-[#F3EADF] text-xs text-[#38754A] font-bold rounded-xl border border-[#EEE7DC] transition-colors flex items-center justify-center gap-1.5"
               >
-                ⚡ 1-Tap Fill Demo Rider (Amit Sharma)
+                <span>⚡</span>
+                <span>1-Tap Fill Demo Rider (Amit Sharma)</span>
               </button>
             </form>
           </div>
@@ -354,170 +357,180 @@ export default function RiderPage() {
         <>
           {/* Rider Notice / PWA Banner */}
           <div className="max-w-md mx-auto w-full px-4 pt-3">
-            <div className="bg-gradient-to-r from-orange-600/30 via-slate-800 to-slate-800 border border-orange-500/30 rounded-xl p-3 flex items-center justify-between text-xs">
+            <div className="bg-white border border-[#EEE7DC] rounded-2xl p-3 flex items-center justify-between text-xs shadow-2xs">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-orange-400 text-[20px]">smartphone</span>
-                <span className="text-slate-200">
-                  <strong className="text-orange-300">Fast Handover:</strong> Enter customer PIN upon arrival.
+                <div className="w-7 h-7 rounded-lg bg-[#EAF4ED] text-[#38754A] flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">verified</span>
+                </div>
+                <span className="text-[#292D26]">
+                  <strong className="text-[#38754A]">Handover:</strong> Enter customer PIN upon arrival to finish.
                 </span>
               </div>
-              <Link href="/" className="text-orange-400 font-semibold hover:underline text-[11px] shrink-0">
-                Storefront
+              <Link href="/" className="text-[#38754A] font-bold hover:underline text-[11px] shrink-0">
+                Storefront ›
               </Link>
             </div>
           </div>
 
-      {/* Tabs: Active vs Completed */}
-      <div className="max-w-md mx-auto w-full px-4 pt-3">
-        <div className="grid grid-cols-2 bg-slate-800 p-1 rounded-xl border border-slate-700">
-          <button
-            onClick={() => setActiveTab('ACTIVE')}
-            className={`py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === 'ACTIVE' ? 'bg-orange-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <span>Active Trips</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">
-              {activeDeliveries.length}
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveTab('COMPLETED')}
-            className={`py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === 'COMPLETED' ? 'bg-orange-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <span>Completed</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">
-              {completedDeliveries.length}
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* Deliveries Feed */}
-      <main className="max-w-md mx-auto w-full px-4 pt-3 flex flex-col gap-3 flex-1">
-        {loading && deliveries.length === 0 ? (
-          <div className="flex flex-col gap-3 pt-4">
-            <div className="h-44 bg-slate-800 rounded-2xl animate-pulse"></div>
-            <div className="h-44 bg-slate-800 rounded-2xl animate-pulse"></div>
-          </div>
-        ) : displayList.length === 0 ? (
-          <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700 text-center flex flex-col items-center gap-3 my-6">
-            <div className="w-14 h-14 rounded-full bg-slate-700/60 flex items-center justify-center text-slate-400">
-              <span className="material-symbols-outlined text-[32px]">two_wheeler</span>
-            </div>
-            <h2 className="font-bold text-base text-slate-200">
-              {activeTab === 'ACTIVE' ? 'No Active Delivery Trips' : 'No Completed Trips Today'}
-            </h2>
-            <p className="text-xs text-slate-400 max-w-xs">
-              {activeTab === 'ACTIVE'
-                ? 'When kitchen marks orders Ready for Dispatch, they will appear here automatically.'
-                : 'Delivered orders will be logged in this tab after PIN verification.'}
-            </p>
-            {activeTab === 'ACTIVE' && (
+          {/* Tabs: Active vs Completed */}
+          <div className="max-w-md mx-auto w-full px-4 pt-3">
+            <div className="grid grid-cols-2 bg-white p-1 rounded-2xl border border-[#EEE7DC] shadow-2xs">
               <button
-                onClick={() => loadDeliveries()}
-                className="mt-2 px-4 py-2 rounded-full bg-orange-600 hover:bg-orange-500 font-bold text-xs flex items-center gap-1.5 shadow-sm"
+                onClick={() => setActiveTab('ACTIVE')}
+                className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'ACTIVE'
+                    ? 'bg-[#38754A] text-white shadow-xs'
+                    : 'text-[#77786F] hover:text-[#292D26]'
+                }`}
               >
-                <span className="material-symbols-outlined text-[16px]">sync</span>
-                Check for New Batches
+                <span>Active Trips</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                  activeTab === 'ACTIVE' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {activeDeliveries.length}
+                </span>
               </button>
-            )}
-          </div>
-        ) : (
-          displayList.map((del) => {
-            const isOutOfDelivery = del.status === 'OUT_FOR_DELIVERY';
-            const isReady = del.status === 'READY_FOR_PICKUP';
-            const isDelivered = del.status === 'DELIVERED';
-
-            return (
-              <div
-                key={del.orderId}
-                className="bg-slate-800 rounded-2xl border border-slate-700/80 shadow-md p-4 flex flex-col gap-3 transition-all"
+              <button
+                onClick={() => setActiveTab('COMPLETED')}
+                className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'COMPLETED'
+                    ? 'bg-[#38754A] text-white shadow-xs'
+                    : 'text-[#77786F] hover:text-[#292D26]'
+                }`}
               >
-                {/* Order Header */}
-                <div className="flex items-start justify-between gap-2 border-b border-slate-700 pb-2.5">
-                  <div>
-                    <span className="text-[11px] font-mono font-bold text-orange-400 block">
-                      #{del.orderNumber}
-                    </span>
-                    <span className="text-xs font-semibold text-slate-300">{del.slotLabel}</span>
-                  </div>
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                      isDelivered
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : isOutOfDelivery
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
-                        : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                    }`}
+                <span>Completed</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                  activeTab === 'COMPLETED' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {completedDeliveries.length}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Deliveries Feed */}
+          <main className="max-w-md mx-auto w-full px-4 pt-3 flex flex-col gap-3 flex-1">
+            {loading && deliveries.length === 0 ? (
+              <div className="flex flex-col gap-3 pt-4">
+                <div className="h-44 bg-white border border-[#EEE7DC] rounded-2xl animate-pulse"></div>
+                <div className="h-44 bg-white border border-[#EEE7DC] rounded-2xl animate-pulse"></div>
+              </div>
+            ) : displayList.length === 0 ? (
+              <div className="bg-white rounded-2xl p-8 border border-[#EEE7DC] shadow-xs text-center flex flex-col items-center gap-3 my-6">
+                <div className="w-14 h-14 rounded-full bg-[#EAF4ED] text-[#38754A] flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[32px]">two_wheeler</span>
+                </div>
+                <h2 className="font-bold text-base text-[#292D26]">
+                  {activeTab === 'ACTIVE' ? 'No Active Delivery Trips' : 'No Completed Trips Today'}
+                </h2>
+                <p className="text-xs text-[#77786F] max-w-xs leading-relaxed">
+                  {activeTab === 'ACTIVE'
+                    ? 'When kitchen marks orders Ready for Dispatch, they will appear here automatically.'
+                    : 'Delivered orders will be logged in this tab after PIN verification.'}
+                </p>
+                {activeTab === 'ACTIVE' && (
+                  <button
+                    onClick={() => loadDeliveries()}
+                    className="mt-2 px-4 py-2 rounded-full bg-[#38754A] hover:bg-[#285C38] font-bold text-xs text-white flex items-center gap-1.5 shadow-xs transition-colors"
                   >
-                    {isDelivered
-                      ? 'DELIVERED'
-                      : isOutOfDelivery
-                      ? 'ON THE WAY'
-                      : 'READY AT KITCHEN'}
-                  </span>
-                </div>
+                    <span className="material-symbols-outlined text-[16px]">sync</span>
+                    Check for New Batches
+                  </button>
+                )}
+              </div>
+            ) : (
+              displayList.map((del) => {
+                const isOutOfDelivery = del.status === 'OUT_FOR_DELIVERY';
+                const isReady = del.status === 'READY_FOR_PICKUP';
+                const isDelivered = del.status === 'DELIVERED';
 
-                {/* Items Summary & Payment */}
-                <div className="flex items-center justify-between text-xs bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/40">
-                  <div className="truncate pr-2">
-                    <span className="text-slate-400 block text-[10px]">Meals:</span>
-                    <span className="font-semibold text-slate-200 truncate block">{del.itemsSummary}</span>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="text-slate-400 block text-[10px]">Payment:</span>
-                    {del.cashDuePaise > 0 ? (
-                      <span className="font-bold text-amber-400 text-xs">
-                        COD: Collect ₹{(del.cashDuePaise / 100).toFixed(2)}
+                return (
+                  <div
+                    key={del.orderId}
+                    className="bg-white rounded-2xl border border-[#EEE7DC] shadow-xs p-4 flex flex-col gap-3 transition-all"
+                  >
+                    {/* Order Header */}
+                    <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                      <div>
+                        <span className="text-[11px] font-mono font-bold text-[#38754A] block">
+                          #{del.orderNumber}
+                        </span>
+                        <span className="text-xs font-semibold text-[#77786F]">{del.slotLabel}</span>
+                      </div>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                          isDelivered
+                            ? 'bg-[#EAF4ED] text-[#38754A] border border-[#38754A]/30'
+                            : isOutOfDelivery
+                            ? 'bg-[#FFF1DC] text-[#E99A32] border border-[#E99A32]/40 animate-pulse'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}
+                      >
+                        {isDelivered
+                          ? 'DELIVERED'
+                          : isOutOfDelivery
+                          ? 'ON THE WAY'
+                          : 'READY AT KITCHEN'}
                       </span>
-                    ) : (
-                      <span className="font-bold text-emerald-400 text-xs">PAID ONLINE</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Customer Details & Address */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-slate-400 text-[18px]">person</span>
-                      {del.customerName}
-                    </h3>
-                    <a
-                      href={`tel:${del.customerPhone}`}
-                      className="px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 active:scale-95 transition-transform"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">call</span>
-                      Call
-                    </a>
-                  </div>
-                  <div className="text-xs text-slate-300 flex items-start gap-1.5 bg-slate-900/40 p-2 rounded-lg">
-                    <span className="material-symbols-outlined text-orange-400 text-[18px] shrink-0 mt-0.5">
-                      location_on
-                    </span>
-                    <div>
-                      <p className="leading-snug">{del.deliveryAddress}</p>
-                      {del.landmark && (
-                        <p className="text-[11px] text-orange-300 mt-0.5">Landmark: {del.landmark}</p>
-                      )}
                     </div>
-                  </div>
-                </div>
 
-                {/* Actions */}
-                {!isDelivered && (
+                    {/* Items Summary & Payment */}
+                    <div className="flex items-center justify-between text-xs bg-[#FFF9F0] p-2.5 rounded-xl border border-[#EEE7DC]">
+                      <div className="truncate pr-2">
+                        <span className="text-[#77786F] block text-[10px] font-bold uppercase tracking-wider">Meals</span>
+                        <span className="font-semibold text-[#292D26] truncate block">{del.itemsSummary}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[#77786F] block text-[10px] font-bold uppercase tracking-wider">Payment</span>
+                        {del.cashDuePaise > 0 ? (
+                          <span className="font-bold text-[#E99A32] text-xs">
+                            COD: Collect ₹{(del.cashDuePaise / 100).toFixed(2)}
+                          </span>
+                        ) : (
+                          <span className="font-bold text-[#38754A] text-xs">PAID ONLINE ✓</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Customer Details & Address */}
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-sm text-[#292D26] flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[#77786F] text-[18px]">person</span>
+                          {del.customerName}
+                        </h3>
+                        <a
+                          href={`tel:${del.customerPhone}`}
+                          className="px-3 py-1 rounded-full bg-[#38754A] hover:bg-[#285C38] text-white font-bold text-xs flex items-center gap-1 active:scale-95 transition-transform shadow-2xs"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">call</span>
+                          Call
+                        </a>
+                      </div>
+                      <div className="text-xs text-[#292D26] flex items-start gap-1.5 bg-[#FFF9F0] p-2.5 rounded-xl border border-[#EEE7DC]">
+                        <span className="material-symbols-outlined text-[#38754A] text-[18px] shrink-0 mt-0.5">
+                          location_on
+                        </span>
+                        <div>
+                          <p className="leading-snug font-medium">{del.deliveryAddress}</p>
+                          {del.landmark && (
+                            <p className="text-[11px] text-[#77786F] mt-0.5">Landmark: {del.landmark}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    {!isDelivered && (
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     {/* Google Maps GPS Navigation Intent */}
                     <a
                       href={del.navigationUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="h-11 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs flex items-center justify-center gap-1.5 text-white active:scale-95 transition-transform shadow-sm"
+                      className="h-11 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 text-slate-800 active:scale-95 transition-transform shadow-xs"
                     >
-                      <span className="material-symbols-outlined text-[18px]">near_me</span>
+                      <span className="material-symbols-outlined text-[#38754A] text-[18px]">near_me</span>
                       <span>Google Maps</span>
                     </a>
 
@@ -526,7 +539,7 @@ export default function RiderPage() {
                       <button
                         onClick={() => handleStartTrip(del.orderId)}
                         disabled={actionLoadingId === del.orderId}
-                        className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-xs flex items-center justify-center gap-1.5 text-white active:scale-95 transition-transform shadow-sm"
+                        className="h-11 rounded-xl bg-[#38754A] hover:bg-[#285C38] font-bold text-xs flex items-center justify-center gap-1.5 text-white active:scale-95 transition-transform shadow-xs"
                       >
                         {actionLoadingId === del.orderId ? (
                           <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
@@ -540,7 +553,7 @@ export default function RiderPage() {
                     ) : (
                       <button
                         onClick={() => openPinModal(del)}
-                        className="h-11 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:brightness-110 font-bold text-xs flex items-center justify-center gap-1.5 text-white active:scale-95 transition-all shadow-md"
+                        className="h-11 rounded-xl bg-[#E99A32] hover:bg-[#D38520] font-bold text-xs flex items-center justify-center gap-1.5 text-white active:scale-95 transition-all shadow-xs"
                       >
                         <span className="material-symbols-outlined text-[18px]">dialpad</span>
                         <span>Verify PIN</span>
@@ -548,116 +561,116 @@ export default function RiderPage() {
                     )}
                   </div>
                 )}
-              </div>
-            );
-          })
-        )}
-      </main>
-
-      {/* 6-DIGIT CUSTOMER PIN KEYPAD MODAL */}
-      {selectedOrder && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-800 border border-slate-700 w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-5 flex flex-col gap-4 shadow-2xl">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-700 pb-3">
-              <div>
-                <h3 className="font-headline font-bold text-base text-white">Enter Customer PIN</h3>
-                <p className="text-xs text-slate-400">Order #{selectedOrder.orderNumber}</p>
-              </div>
-              <button
-                onClick={closePinModal}
-                disabled={isVerifying}
-                className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            {/* Instruction */}
-            <p className="text-xs text-slate-300 text-center px-2">
-              Ask customer for the <strong className="text-orange-400">6-digit handover PIN</strong> displayed on their
-              tracking screen.
-            </p>
-
-            {/* 6 PIN Display Boxes */}
-            <div className="flex items-center justify-center gap-2 py-2">
-              {[0, 1, 2, 3, 4, 5].map((idx) => {
-                const hasVal = pinDigits[idx] !== undefined;
-                return (
-                  <div
-                    key={idx}
-                    className={`w-11 h-13 rounded-xl flex items-center justify-center text-xl font-mono font-bold transition-all ${
-                      verifySuccess
-                        ? 'bg-emerald-500/20 border-2 border-emerald-400 text-emerald-300'
-                        : hasVal
-                        ? 'bg-slate-700 border-2 border-orange-500 text-white shadow-sm'
-                        : 'bg-slate-900 border border-slate-700 text-slate-500'
-                    }`}
-                  >
-                    {verifySuccess ? (
-                      <span className="material-symbols-outlined text-emerald-400 text-[20px]">check</span>
-                    ) : hasVal ? (
-                      pinDigits[idx]
-                    ) : (
-                      '•'
-                    )}
                   </div>
                 );
-              })}
-            </div>
-
-            {/* Error or Success feedback */}
-            {pinError && (
-              <div className="p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs text-center flex items-center justify-center gap-1.5">
-                <span className="material-symbols-outlined text-[18px]">error</span>
-                <span>{pinError}</span>
-              </div>
+              })
             )}
-            {verifySuccess && (
-              <div className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs text-center flex items-center justify-center gap-1.5 font-bold">
-                <span className="material-symbols-outlined text-[20px]">verified</span>
-                <span>PIN Verified! Meal Delivered Fresh.</span>
-              </div>
-            )}
+          </main>
 
-            {/* Numeric Touch Keypad */}
-            <div className="grid grid-cols-3 gap-2 pt-2">
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-                <button
-                  key={digit}
-                  onClick={() => handleKeypadPress(digit)}
-                  disabled={isVerifying || verifySuccess}
-                  className="h-14 rounded-2xl bg-slate-700/80 hover:bg-slate-700 active:bg-orange-600 text-xl font-bold font-mono text-white flex items-center justify-center shadow-sm active:scale-95 transition-all"
-                >
-                  {digit}
-                </button>
-              ))}
-              <button
-                onClick={() => setPinDigits([])}
-                disabled={isVerifying || verifySuccess || pinDigits.length === 0}
-                className="h-14 rounded-2xl bg-slate-900 text-xs font-bold text-slate-400 flex items-center justify-center active:scale-95 transition-all"
-              >
-                Clear
-              </button>
-              <button
-                onClick={() => handleKeypadPress('0')}
-                disabled={isVerifying || verifySuccess}
-                className="h-14 rounded-2xl bg-slate-700/80 hover:bg-slate-700 active:bg-orange-600 text-xl font-bold font-mono text-white flex items-center justify-center shadow-sm active:scale-95 transition-all"
-              >
-                0
-              </button>
-              <button
-                onClick={handleBackspace}
-                disabled={isVerifying || verifySuccess || pinDigits.length === 0}
-                className="h-14 rounded-2xl bg-slate-900 text-slate-300 flex items-center justify-center active:scale-95 transition-all"
-                aria-label="Backspace"
-              >
-                <span className="material-symbols-outlined text-[22px]">backspace</span>
-              </button>
+          {/* 6-DIGIT CUSTOMER PIN KEYPAD MODAL */}
+          {selectedOrder && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+              <div className="bg-white border border-[#EEE7DC] w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-5 flex flex-col gap-4 shadow-2xl">
+                {/* Modal Header */}
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="font-headline font-bold text-base text-[#292D26]">Enter Customer PIN</h3>
+                    <p className="text-xs text-[#77786F]">Order #{selectedOrder.orderNumber}</p>
+                  </div>
+                  <button
+                    onClick={closePinModal}
+                    disabled={isVerifying}
+                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">close</span>
+                  </button>
+                </div>
+
+                {/* Instruction */}
+                <p className="text-xs text-[#77786F] text-center px-2">
+                  Ask customer for the <strong className="text-[#38754A]">6-digit handover PIN</strong> displayed on their
+                  live tracking screen.
+                </p>
+
+                {/* 6 PIN Display Boxes */}
+                <div className="flex items-center justify-center gap-2 py-2">
+                  {[0, 1, 2, 3, 4, 5].map((idx) => {
+                    const hasVal = pinDigits[idx] !== undefined;
+                    return (
+                      <div
+                        key={idx}
+                        className={`w-11 h-13 rounded-xl flex items-center justify-center text-xl font-mono font-bold transition-all ${
+                          verifySuccess
+                            ? 'bg-[#EAF4ED] border-2 border-[#38754A] text-[#38754A]'
+                            : hasVal
+                            ? 'bg-[#FFF1DC] border-2 border-[#E99A32] text-[#292D26] shadow-xs'
+                            : 'bg-[#FFF9F0] border border-[#EEE7DC] text-[#77786F]'
+                        }`}
+                      >
+                        {verifySuccess ? (
+                          <span className="material-symbols-outlined text-[#38754A] text-[20px]">check</span>
+                        ) : hasVal ? (
+                          pinDigits[idx]
+                        ) : (
+                          '•'
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Error or Success feedback */}
+                {pinError && (
+                  <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs text-center flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined text-[18px]">error</span>
+                    <span>{pinError}</span>
+                  </div>
+                )}
+                {verifySuccess && (
+                  <div className="p-2.5 rounded-xl bg-[#EAF4ED] border border-[#38754A]/30 text-[#38754A] text-xs text-center flex items-center justify-center gap-1.5 font-bold">
+                    <span className="material-symbols-outlined text-[20px]">verified</span>
+                    <span>PIN Verified! Meal Delivered Fresh.</span>
+                  </div>
+                )}
+
+                {/* Numeric Touch Keypad */}
+                <div className="grid grid-cols-3 gap-2 pt-2">
+                  {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+                    <button
+                      key={digit}
+                      onClick={() => handleKeypadPress(digit)}
+                      disabled={isVerifying || verifySuccess}
+                      className="h-14 rounded-2xl bg-[#FFF9F0] hover:bg-[#F3EADF] active:bg-[#38754A] active:text-white border border-[#EEE7DC] text-xl font-bold font-mono text-[#292D26] flex items-center justify-center shadow-xs active:scale-95 transition-all"
+                    >
+                      {digit}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPinDigits([])}
+                    disabled={isVerifying || verifySuccess || pinDigits.length === 0}
+                    className="h-14 rounded-2xl bg-white border border-[#EEE7DC] text-xs font-bold text-[#77786F] hover:text-[#292D26] hover:bg-slate-50 flex items-center justify-center active:scale-95 transition-all"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => handleKeypadPress('0')}
+                    disabled={isVerifying || verifySuccess}
+                    className="h-14 rounded-2xl bg-[#FFF9F0] hover:bg-[#F3EADF] active:bg-[#38754A] active:text-white border border-[#EEE7DC] text-xl font-bold font-mono text-[#292D26] flex items-center justify-center shadow-xs active:scale-95 transition-all"
+                  >
+                    0
+                  </button>
+                  <button
+                    onClick={handleBackspace}
+                    disabled={isVerifying || verifySuccess || pinDigits.length === 0}
+                    className="h-14 rounded-2xl bg-white border border-[#EEE7DC] text-[#77786F] hover:text-[#292D26] hover:bg-slate-50 flex items-center justify-center active:scale-95 transition-all"
+                    aria-label="Backspace"
+                  >
+                    <span className="material-symbols-outlined text-[22px]">backspace</span>
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
         </>
       )}
     </div>

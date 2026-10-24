@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
 export interface CartItem {
   productId: string;
@@ -72,57 +72,96 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
-  const saveItems = (newItems: CartItem[]) => {
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const saveItems = useCallback((newItems: CartItem[]) => {
     setItems(newItems);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newItems));
     } catch (e) {
       console.warn('Could not save cart to localStorage', e);
     }
-  };
+  }, []);
 
-  const showToast = (msg: string, isError = false) => {
+  const showToast = useCallback((msg: string, isError = false) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
     setToastMessage(msg);
     setIsToastError(isError);
-    setTimeout(() => {
+    toastTimeoutRef.current = setTimeout(() => {
       setToastMessage(null);
     }, 3000);
-  };
+  }, []);
 
-  const addItem = (newItem: CartItem) => {
-    const existingIdx = items.findIndex(
-      (i) => i.productId === newItem.productId && i.variantId === newItem.variantId
-    );
-    let updated: CartItem[];
-    if (existingIdx > -1) {
-      updated = [...items];
-      updated[existingIdx].quantity += newItem.quantity;
-    } else {
-      updated = [...items, newItem];
-    }
-    saveItems(updated);
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const addItem = useCallback((newItem: CartItem) => {
+    setItems((prev) => {
+      const existingIdx = prev.findIndex(
+        (i) => i.productId === newItem.productId && i.variantId === newItem.variantId
+      );
+      let updated: CartItem[];
+      if (existingIdx > -1) {
+        updated = [...prev];
+        updated[existingIdx].quantity += newItem.quantity;
+      } else {
+        updated = [...prev, newItem];
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Could not save cart to localStorage', e);
+      }
+      return updated;
+    });
     showToast(`Added ${newItem.name} to your tray!`);
-  };
+  }, [showToast]);
 
-  const updateQty = (index: number, delta: number) => {
-    const updated = [...items];
-    if (!updated[index]) return;
-    updated[index].quantity += delta;
-    if (updated[index].quantity <= 0) {
+  const updateQty = useCallback((index: number, delta: number) => {
+    setItems((prev) => {
+      const updated = [...prev];
+      if (!updated[index]) return prev;
+      updated[index].quantity += delta;
+      if (updated[index].quantity <= 0) {
+        updated.splice(index, 1);
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Could not save cart to localStorage', e);
+      }
+      return updated;
+    });
+  }, []);
+
+  const removeItem = useCallback((index: number) => {
+    setItems((prev) => {
+      const updated = [...prev];
       updated.splice(index, 1);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Could not save cart to localStorage', e);
+      }
+      return updated;
+    });
+  }, []);
+
+  const clearCart = useCallback(() => {
+    setItems([]);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+    } catch (e) {
+      console.warn('Could not save cart to localStorage', e);
     }
-    saveItems(updated);
-  };
-
-  const removeItem = (index: number) => {
-    const updated = [...items];
-    updated.splice(index, 1);
-    saveItems(updated);
-  };
-
-  const clearCart = () => {
-    saveItems([]);
-  };
+  }, []);
 
   const totalCount = mounted ? items.reduce((sum, item) => sum + item.quantity, 0) : 0;
   const totalPricePaise = mounted ? items.reduce((sum, item) => sum + item.pricePaise * item.quantity, 0) : 0;

@@ -2218,7 +2218,7 @@ export default function OperationsConsolePage() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                   <div>
                     <div className="font-bold text-sm text-gray-900">Database Connection</div>
                     <div className="text-xs text-gray-500">Supabase PostgreSQL live instance</div>
@@ -2227,6 +2227,38 @@ export default function OperationsConsolePage() {
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                     <span>Connected</span>
                   </span>
+                </div>
+
+                {/* Delivery Service Zones & Pincode 454774 Status */}
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-sm text-gray-900">Active Delivery Zones &amp; Pincodes</div>
+                      <div className="text-xs text-gray-500">Live serviceability area for kitchen fulfillment</div>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      LIVE SERVICE
+                    </span>
+                  </div>
+
+                  <div className="bg-[#fcfdfa] rounded-xl border border-stone-200/80 p-3.5 flex flex-col gap-2">
+                    <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                        <span className="text-xs font-bold text-gray-900">Sagore / Pithampur Central Zone</span>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md border border-emerald-300">
+                        PIN 454774
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-gray-600">
+                      <span>Delivery Fee: ₹0 (Free Sagore Dispatch)</span>
+                      <span className="text-emerald-700 font-bold flex items-center gap-1">
+                        <span>✓</span>
+                        <span>Serviceable</span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </main>

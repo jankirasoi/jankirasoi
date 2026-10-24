@@ -408,78 +408,7 @@ export default function HomePage() {
           <span className="text-[9px] font-extrabold tracking-wider uppercase">ITEMS</span>
         </Link>
 
-        {/* 5. Trust Badges Section */}
-        <div className="mt-8">
-          <div className="rounded-2xl bg-white p-5 flex flex-col gap-4 border border-[#EEE7DC] shadow-xs">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#38754A] text-[22px]">verified</span>
-              <h4 className="text-base sm:text-lg text-[#292D26] font-bold font-headline">The Janki Promise</h4>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* 1. Pure Veg */}
-              <div className="flex items-start gap-3 bg-[#FFF9F0] p-3.5 rounded-xl border border-[#EEE7DC]">
-                <div className="w-9 h-9 rounded-lg bg-[#EAF4ED] flex items-center justify-center text-[#38754A] shrink-0">
-                  <span className="material-symbols-outlined text-[20px]">spa</span>
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs sm:text-sm font-bold text-[#292D26]">100% Pure Vegetarian</span>
-                  <span className="text-xs text-[#77786F] mt-0.5 leading-snug">
-                    Separate dedicated kitchen space with strict culinary purity.
-                  </span>
-                </div>
-              </div>
-
-              {/* 2. Ghee & Fresh Veggies */}
-              <div className="flex items-start gap-3 bg-[#FFF9F0] p-3.5 rounded-xl border border-[#EEE7DC]">
-                <div className="w-9 h-9 rounded-lg bg-[#FFF1DC] flex items-center justify-center text-[#E99A32] shrink-0">
-                  <span
-                    className="material-symbols-outlined text-[20px]"
-                    style={{ fontVariationSettings: "'FILL' 1" }}
-                  >
-                    nutrition
-                  </span>
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs sm:text-sm font-bold text-[#292D26]">Desi Ghee &amp; Farm Veggies</span>
-                  <span className="text-xs text-[#77786F] mt-0.5 leading-snug">
-                    Procured fresh daily every dawn from local mandis. No stale stock.
-                  </span>
-                </div>
-              </div>
-
-              {/* 3. Clean Packaging */}
-              <div className="flex items-start gap-3 bg-[#FFF9F0] p-3.5 rounded-xl border border-[#EEE7DC]">
-                <div className="w-9 h-9 rounded-lg bg-[#EAF4ED] flex items-center justify-center text-[#38754A] shrink-0">
-                  <span className="material-symbols-outlined text-[20px]">inventory_2</span>
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs sm:text-sm font-bold text-[#292D26]">Stainless &amp; Odor-Free</span>
-                  <span className="text-xs text-[#77786F] mt-0.5 leading-snug">
-                    Food-grade hygienic foil &amp; insulated containers. Zero plastic smell.
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 6. Subscription Micro-Teaser */}
-        <div className="mt-5 p-5 rounded-2xl bg-[#38754A] text-white flex items-center justify-between gap-3 shadow-md">
-          <div className="flex flex-col min-w-0">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-[#EAF4ED]">
-              Save 20% Monthly
-            </span>
-            <h4 className="text-base sm:text-lg font-bold leading-snug">Subscribe to Daily Tiffin</h4>
-            <p className="text-xs text-white/90 mt-0.5">Pause or cancel anytime with 1 tap</p>
-          </div>
-          <Link
-            href="/menu"
-            className="px-5 py-2.5 rounded-xl bg-white hover:bg-[#EAF4ED] text-[#38754A] text-xs font-bold shrink-0 active:scale-95 transition-transform shadow-xs"
-          >
-            Plans
-          </Link>
-        </div>
       </div>
 
       {/* Food Item Detail Bottom Sheet / Modal matching reference screenshot */}

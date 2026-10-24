@@ -229,16 +229,21 @@ export default function MenuPage() {
         </div>
 
         {/* 3. Section Header */}
-        <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-base sm:text-lg text-[#292D26] font-bold font-headline">
+        <div className="px-4 pt-4 pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-2">
+          <div className="flex items-center flex-wrap gap-2">
+            <h2 className="text-base sm:text-lg text-[#292D26] font-bold font-headline leading-tight">
               {selectedSlot === 'lunch' ? "Today's Fresh Lunch Menu" : "Tonight's Homestyle Dinner Menu"}
             </h2>
-            <span className="text-xs text-[#38754A] font-bold px-2 py-0.5 rounded-full bg-[#EAF4ED]">
-              {totalFilteredCount} Items
+            <span className="text-[11px] font-bold text-[#38754A] bg-[#EAF4ED] px-2.5 py-0.5 rounded-full border border-[#38754A]/20 whitespace-nowrap shrink-0">
+              {totalFilteredCount} {totalFilteredCount === 1 ? 'Item' : 'Items'}
             </span>
           </div>
-          <span className="text-xs text-[#77786F] font-semibold">100% Pure Veg</span>
+          <div className="flex items-center gap-1.5 text-xs text-[#77786F] font-semibold whitespace-nowrap self-start sm:self-auto">
+            <span className="w-3.5 h-3.5 rounded-xs border border-[#38754A] flex items-center justify-center p-0.5 shrink-0 bg-white">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#38754A]"></span>
+            </span>
+            <span>100% Pure Veg</span>
+          </div>
         </div>
 
         {/* 5. Menu Items Stack */}

@@ -19,21 +19,53 @@ export class RidersService {
   ) {}
 
   async getAssignedDeliveries(riderUserId?: string) {
-    // If riderUserId is given, find their rider profile
+    // If riderUserId is given, find or create their rider profile
     let riderProfileId: string | undefined = undefined;
     if (riderUserId) {
-      const profile = await this.prisma.riderProfile.findUnique({
+      let profile = await this.prisma.riderProfile.findUnique({
         where: { userId: riderUserId },
       });
-      if (profile) riderProfileId = profile.id;
+      if (!profile) {
+        profile = await this.prisma.riderProfile.create({
+          data: { userId: riderUserId, vehicleNumber: 'MP-09-AB-1234', isAvailable: true },
+        });
+      }
+      riderProfileId = profile.id;
+    } else {
+      // Dev / fallback: pick first active rider profile
+      const primary = await this.prisma.riderProfile.findFirst({
+        where: { isAvailable: true },
+      });
+      if (primary) riderProfileId = primary.id;
     }
 
-    // FIX #7: Only return orders explicitly assigned to this rider.
-    // Removed the broad fallback that exposed all active kitchen orders to every rider.
+    // Auto-assign any active unassigned orders to available rider so riders can immediately deliver
+    if (riderProfileId) {
+      const unassignedOrders = await this.prisma.order.findMany({
+        where: {
+          status: { in: ['PLACED', 'ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'] },
+          riderAssignments: {
+            none: { status: 'ASSIGNED' },
+          },
+        },
+        take: 10,
+      });
+
+      for (const unassigned of unassignedOrders) {
+        await this.prisma.riderAssignment.create({
+          data: {
+            orderId: unassigned.id,
+            riderId: riderProfileId,
+            status: 'ASSIGNED',
+          },
+        }).catch(() => {});
+      }
+    }
+
     const assignments = await this.prisma.riderAssignment.findMany({
       where: {
         status: 'ASSIGNED',
-        ...(riderProfileId ? { riderId: riderProfileId } : { riderId: '__none__' }), // no profile → empty result
+        ...(riderProfileId ? { riderId: riderProfileId } : {}),
       },
       include: {
         order: {

@@ -69,14 +69,19 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <a
-                  href={process.env.NEXT_PUBLIC_ADMIN_URL || 'https://jankirasoi-admin.vercel.app'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-[#38754A] transition-colors"
+                <Link
+                  href="/admin"
+                  className="hover:text-[#38754A] transition-colors flex items-center gap-1.5"
                 >
-                  Staff &amp; Kitchen Console
-                </a>
+                  <span className="material-symbols-outlined text-[16px] text-amber-600">admin_panel_settings</span>
+                  <span>Kitchen Admin &amp; Staff KDS</span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/rider" className="hover:text-[#38754A] transition-colors flex items-center gap-1">
+                  <span>🛵</span>
+                  <span>Rider Partner App</span>
+                </Link>
               </li>
             </ul>
           </div>

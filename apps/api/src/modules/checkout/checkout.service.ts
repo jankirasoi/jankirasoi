@@ -9,6 +9,7 @@ import { CalculateQuoteDto, PlaceOrderDto } from './dto/checkout.dto';
 import { randomBytes, createHmac } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { OrdersEventsService } from '../events/orders-events.service';
+import { DeliveryZonesService } from '../delivery-zones/delivery-zones.service';
 const Razorpay = require('razorpay');
 
 interface CachedQuote {
@@ -42,12 +43,14 @@ interface CachedQuote {
 @Injectable()
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
+  private readonly quoteCache = new Map<string, CachedQuote>();
   private razorpayClient: any = null;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly ordersEventsService: OrdersEventsService,
+    private readonly deliveryZonesService: DeliveryZonesService,
   ) {
     const key_id = this.configService.get<string>('RAZORPAY_KEY_ID');
     const key_secret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -57,50 +60,90 @@ export class CheckoutService {
   }
 
   // ---------------------------------------------------------------------------
-  // FIX #11: Quote persistence — store quotes in PostgreSQL instead of in-process
-  // memory so all API instances share the same quote state. A quote row has a
-  // short TTL (15 min) and is cleaned up after use or expiry.
+  // Quote persistence & caching — hybrid in-memory + DB storage.
+  // Lookups check in-memory map first (0ms), falling back to DB for cluster/restart.
+  // Expiring a quote only expires that specific token, preserving all other quotes.
   // ---------------------------------------------------------------------------
 
   private async saveQuote(quote: CachedQuote): Promise<void> {
-    await this.prisma.outboxMessage.create({
-      data: {
-        eventType: 'QUOTE_CACHE',
-        payload: quote as any,
-        status: 'PENDING',
-        scheduledFor: quote.expiresAt, // reuse scheduledFor as expiry marker
-      },
-    });
+    this.quoteCache.set(quote.quoteToken, quote);
+    try {
+      await this.prisma.outboxMessage.create({
+        data: {
+          eventType: 'QUOTE_CACHE',
+          payload: quote as any,
+          status: 'PENDING',
+          scheduledFor: quote.expiresAt,
+        },
+      });
+    } catch (err) {
+      this.logger.warn(`Failed to persist quote to DB: ${(err as Error).message}`);
+    }
   }
 
   private async loadQuote(quoteToken: string): Promise<CachedQuote | null> {
-    const record = await this.prisma.outboxMessage.findFirst({
-      where: {
-        eventType: 'QUOTE_CACHE',
-        status: 'PENDING',
-        scheduledFor: { gt: new Date() }, // not yet expired
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!record) return null;
-    const payload = record.payload as any;
-    if (payload.quoteToken !== quoteToken) return null;
-    // Convert date strings back to Date objects
-    return {
-      ...payload,
-      expiresAt: new Date(payload.expiresAt),
-      serviceDate: new Date(payload.serviceDate),
-    } as CachedQuote;
+    // 1. Fast in-memory lookup
+    const inMemory = this.quoteCache.get(quoteToken);
+    if (inMemory && inMemory.expiresAt > new Date()) {
+      return inMemory;
+    }
+
+    // 2. Fallback to DB lookup specifically matching quoteToken
+    try {
+      const records = await this.prisma.outboxMessage.findMany({
+        where: {
+          eventType: 'QUOTE_CACHE',
+          status: 'PENDING',
+          scheduledFor: { gt: new Date() },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+
+      for (const rec of records) {
+        const payload = rec.payload as any;
+        if (payload && payload.quoteToken === quoteToken) {
+          const loaded: CachedQuote = {
+            ...payload,
+            expiresAt: new Date(payload.expiresAt),
+            serviceDate: new Date(payload.serviceDate),
+          };
+          this.quoteCache.set(quoteToken, loaded);
+          return loaded;
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to load quote from DB: ${(err as Error).message}`);
+    }
+
+    return null;
   }
 
   private async expireQuote(quoteToken: string): Promise<void> {
-    await this.prisma.outboxMessage.updateMany({
-      where: {
-        eventType: 'QUOTE_CACHE',
-        status: 'PENDING',
-      },
-      data: { status: 'COMPLETED' },
-    });
+    this.quoteCache.delete(quoteToken);
+    try {
+      const records = await this.prisma.outboxMessage.findMany({
+        where: {
+          eventType: 'QUOTE_CACHE',
+          status: 'PENDING',
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+
+      for (const rec of records) {
+        const payload = rec.payload as any;
+        if (payload && payload.quoteToken === quoteToken) {
+          await this.prisma.outboxMessage.update({
+            where: { id: rec.id },
+            data: { status: 'COMPLETED' },
+          });
+          break;
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to expire quote in DB: ${(err as Error).message}`);
+    }
   }
 
   async calculateQuote(dto: CalculateQuoteDto) {
@@ -109,14 +152,35 @@ export class CheckoutService {
       throw new BadRequestException('Invalid service date. Format: YYYY-MM-DD');
     }
 
-    // 1. Verify Delivery Zone
-    const zone = await this.prisma.deliveryZone.findUnique({
-      where: { pincode: dto.pincode },
-    });
-    if (!zone || !zone.isActive) {
+    // 1. Verify Delivery Zone from Sagore Kitchen (5km free delivery, 15km max boundary)
+    const cleanPin = (dto.pincode || '454774').trim().replace(/\D/g, '');
+    const zoneCheck = await this.deliveryZonesService.checkPincode(cleanPin);
+    if (!zoneCheck.serviceable) {
       throw new BadRequestException({
-        code: 'INVALID_PINCODE',
-        message: `Delivery is not currently serviceable for pincode ${dto.pincode}`,
+        code: 'UNSERVICEABLE_ZONE',
+        message: zoneCheck.message || 'Delivery is only available within 15 km of Sagore Kitchen (MP 454774).',
+      });
+    }
+
+    let zone = await this.prisma.deliveryZone.findUnique({
+      where: { pincode: cleanPin },
+    });
+    if (!zone) {
+      zone = await this.prisma.deliveryZone.upsert({
+        where: { pincode: cleanPin },
+        update: {
+          deliveryFeePaise: zoneCheck.deliveryFeePaise,
+          freeDeliveryThresholdPaise: zoneCheck.isFreeDelivery ? 0 : 49900,
+          isActive: true,
+        },
+        create: {
+          name: zoneCheck.zoneName || 'Sagore Delivery Zone',
+          pincode: cleanPin,
+          deliveryFeePaise: zoneCheck.deliveryFeePaise,
+          freeDeliveryThresholdPaise: zoneCheck.isFreeDelivery ? 0 : 49900,
+          minOrderPaise: 0,
+          isActive: true,
+        },
       });
     }
 
@@ -236,8 +300,9 @@ export class CheckoutService {
     }
 
     // 4. Calculate Delivery Fee, Packaging Fee & 5% GST
-    let deliveryFeePaise = zone.deliveryFeePaise;
-    if (zone.freeDeliveryThresholdPaise && subtotalPaise >= zone.freeDeliveryThresholdPaise) {
+    // Sagore Rule: <= 5km is ₹0 (Free Delivery). > 5km <= 15km standard fee applies.
+    let deliveryFeePaise = zoneCheck.deliveryFeePaise;
+    if (zone.freeDeliveryThresholdPaise && zone.freeDeliveryThresholdPaise > 0 && subtotalPaise >= zone.freeDeliveryThresholdPaise) {
       deliveryFeePaise = 0;
     }
 
@@ -443,6 +508,28 @@ export class CheckoutService {
             status: 'PENDING',
           },
         });
+      }
+
+      // Auto-assign available active rider immediately upon order creation
+      try {
+        const availableRider = await tx.riderProfile.findFirst({
+          where: {
+            isAvailable: true,
+            user: { isActive: true },
+          },
+        });
+        if (availableRider) {
+          await tx.riderAssignment.create({
+            data: {
+              orderId: order.id,
+              riderId: availableRider.id,
+              status: 'ASSIGNED',
+            },
+          });
+          this.logger.log(`Auto-assigned rider ${availableRider.id} to new order #${order.orderNumber}`);
+        }
+      } catch (err: any) {
+        this.logger.warn(`Could not auto-assign rider: ${err.message}`);
       }
 
       // Enqueue notification outbox

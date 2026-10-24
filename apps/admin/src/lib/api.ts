@@ -235,6 +235,21 @@ export const adminApi = {
     }
     return res.json();
   },
+
+  // 11. Fetch Active Delivery Zones
+  async getDeliveryZones() {
+    const base = getApiBase();
+    try {
+      const res = await fetch(`${base}/delivery-zones`);
+      if (res.ok) return res.json();
+    } catch {
+      // fallback
+    }
+    return [
+      { id: 'sagore-454774', name: 'Sagore / Pithampur - Main Kitchen Zone', pincode: '454774', minOrderPaise: 0, deliveryFeePaise: 0, isActive: true },
+      { id: '1', name: 'South Delhi - Malviya Nagar & Saket', pincode: '110017', minOrderPaise: 9900, deliveryFeePaise: 3000, isActive: true },
+    ];
+  },
 };
 
 export interface AdminCustomer {

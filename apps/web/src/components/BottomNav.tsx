@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '../context/CartContext';
-import { api, TrackOrderResponse, DEFAULT_FOOD_IMAGE } from '../lib/api';
+import { api, TrackOrderResponse } from '../lib/api';
+import DeliveryStatusPill, { resolveOrderFoodImage } from './DeliveryStatusPill';
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -17,6 +18,15 @@ export default function BottomNav() {
     firstItemName: string;
     totalItems: number;
     imageUrl?: string;
+    createdAt?: string;
+    deliveryAddress?: {
+      flat?: string;
+      street?: string;
+      landmark?: string;
+      pincode?: string;
+      latitude?: number;
+      longitude?: number;
+    };
   } | null>(null);
 
   const [dismissedOrderId, setDismissedOrderId] = useState<string | null>(null);
@@ -42,10 +52,8 @@ export default function BottomNav() {
           let punchyLine = 'Preparing your wholesome homestyle meal';
           if (data.status === 'OUT_FOR_DELIVERY') {
             punchyLine = 'Rider is on the way with your meal tray';
-          } else if (data.status === 'READY_FOR_PICKUP') {
-            punchyLine = 'Packed warm in spill-proof sealed tray';
-          } else if (data.status === 'PREPARING') {
-            punchyLine = 'Piping hot tawa phulkas being prepared';
+          } else if (data.status === 'READY_FOR_PICKUP' || data.status === 'PREPARING') {
+            punchyLine = 'Piping hot wholesome meal being prepared';
           } else if (data.status === 'ACCEPTED') {
             punchyLine = 'Kitchen confirmed your meal batch';
           } else if (data.status === 'PLACED') {
@@ -54,6 +62,7 @@ export default function BottomNav() {
 
           const firstItem = data.items && data.items.length > 0 ? data.items[0].name : 'Homestyle Thali';
           const totalQty = data.items ? data.items.reduce((acc, i) => acc + (i.quantity || 1), 0) : 1;
+          const resolvedImg = resolveOrderFoodImage(firstItem);
 
           setActiveOrder({
             token: lastToken,
@@ -62,7 +71,9 @@ export default function BottomNav() {
             punchyLine,
             firstItemName: firstItem,
             totalItems: totalQty,
-            imageUrl: DEFAULT_FOOD_IMAGE,
+            imageUrl: resolvedImg,
+            createdAt: data.createdAt,
+            deliveryAddress: data.deliveryAddress,
           });
         } else {
           setActiveOrder(null);
@@ -80,8 +91,8 @@ export default function BottomNav() {
     };
   }, [pathname]);
 
-  // Don't show floating bar on rider interface or cart checkout page
-  if (pathname === '/cart' || pathname.startsWith('/rider')) return null;
+  // Don't show floating bar on rider interface, admin dashboard, or cart checkout page
+  if (pathname === '/cart' || pathname.startsWith('/rider') || pathname.startsWith('/admin')) return null;
 
   const showCartPill = totalCount > 0 && pathname !== '/cart';
   const showActiveOrderPill =
@@ -132,41 +143,44 @@ export default function BottomNav() {
       {!showCartPill && showActiveOrderPill && activeOrder && pathname !== '/track' && (
         <aside
           aria-label="Active Order Status"
-          className="fixed bottom-20 md:bottom-6 inset-x-3 sm:inset-x-auto sm:right-6 max-w-sm w-full mx-auto z-50 pointer-events-none animate-fadeIn"
+          className="fixed bottom-20 md:bottom-6 inset-x-3 sm:inset-x-auto sm:right-6 max-w-sm sm:max-w-md w-full mx-auto z-50 pointer-events-none animate-fadeIn"
         >
-          <div className="pointer-events-auto bg-white/95 backdrop-blur-md text-[#292D26] p-3 rounded-2xl shadow-xl shadow-black/5 border border-[#EEE7DC] flex items-center justify-between">
+          <div className="pointer-events-auto bg-white/95 backdrop-blur-md text-[#292D26] p-2.5 sm:p-3 rounded-2xl shadow-xl shadow-black/5 border border-[#EEE7DC] flex items-center justify-between gap-2.5">
             <Link
-              href={`/track?token=${activeOrder.token}`}
-              className="flex items-center gap-2.5 min-w-0 flex-1"
+              href={`/track?token=${encodeURIComponent(activeOrder.token)}`}
+              className="flex items-center gap-2 min-w-0 flex-1 group"
             >
-              <div className="w-8 h-8 rounded-xl bg-[#EAF4ED] text-[#38754A] flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[18px]">skillet</span>
-              </div>
               <div className="truncate">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#38754A] animate-pulse shrink-0"></span>
-                  <span className="text-xs font-bold text-[#292D26] truncate">
-                    {activeOrder.punchyLine}
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#38754A] animate-pulse shrink-0"></span>
+                  <span className="text-xs font-bold text-[#292D26] truncate group-hover:text-[#38754A] transition-colors">
+                    Order #{activeOrder.orderNumber}
                   </span>
                 </div>
-                <div className="text-[11px] text-[#77786F] truncate">
-                  Order #{activeOrder.orderNumber} • {activeOrder.status}
+                <div className="text-[11px] text-[#77786F] truncate mt-0.5">
+                  {activeOrder.firstItemName}
                 </div>
               </div>
             </Link>
-            <div className="flex items-center gap-1 shrink-0 ml-2">
-              <Link
-                href={`/track?token=${activeOrder.token}`}
-                className="px-2.5 py-1 rounded-xl bg-[#38754A] text-white text-[11px] font-bold shadow-xs hover:bg-[#285C38] transition-colors"
-              >
-                Track
-              </Link>
+
+            {/* Positioned at bottom-right of the order card: Minimalistic delivery status pill */}
+            <div className="flex items-center gap-1 shrink-0">
+              <DeliveryStatusPill
+                orderNumber={activeOrder.orderNumber}
+                token={activeOrder.token}
+                status={activeOrder.status}
+                createdAt={activeOrder.createdAt}
+                imageUrl={activeOrder.imageUrl}
+                itemName={activeOrder.firstItemName}
+                deliveryAddress={activeOrder.deliveryAddress}
+              />
               <button
                 onClick={() => setDismissedOrderId(activeOrder.orderNumber)}
-                className="w-6 h-6 rounded-full hover:bg-[#EEE7DC] text-[#77786F] flex items-center justify-center text-xs ml-1"
+                className="w-6 h-6 rounded-full hover:bg-[#EEE7DC] text-[#77786F] flex items-center justify-center text-xs ml-0.5 shrink-0 transition-colors"
                 title="Dismiss"
+                aria-label="Dismiss order status"
               >
-                <span className="material-symbols-outlined text-[16px]">close</span>
+                <span className="material-symbols-outlined text-[15px]">close</span>
               </button>
             </div>
           </div>

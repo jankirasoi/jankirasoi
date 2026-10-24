@@ -1,6 +1,88 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+export const SAGORE_KITCHEN_LAT = 22.6288;
+export const SAGORE_KITCHEN_LNG = 75.5684;
+export const SAGORE_DEFAULT_PINCODE = '454774';
+export const FREE_DELIVERY_RADIUS_KM = 5.0;
+export const MAX_DELIVERY_RADIUS_KM = 15.0;
+
+export function calculateHaversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+export interface SagoreZoneInfo {
+  pincode: string;
+  zoneName: string;
+  city: string;
+  district: string;
+  state: string;
+  approxDistanceKm: number;
+  lat: number;
+  lng: number;
+}
+
+export const SAGORE_LOCAL_PINCODES: Record<string, SagoreZoneInfo> = {
+  '454774': {
+    pincode: '454774',
+    zoneName: 'Sagore Central & Pithampur Core',
+    city: 'Sagore, Pithampur',
+    district: 'Dhar',
+    state: 'Madhya Pradesh',
+    approxDistanceKm: 2.0,
+    lat: 22.6288,
+    lng: 75.5684,
+  },
+  '454775': {
+    pincode: '454775',
+    zoneName: 'Pithampur Industrial Outer / Kheda',
+    city: 'Pithampur Outer, Dhar',
+    district: 'Dhar',
+    state: 'Madhya Pradesh',
+    approxDistanceKm: 7.5,
+    lat: 22.6050,
+    lng: 75.6200,
+  },
+  '453331': {
+    pincode: '453331',
+    zoneName: 'Mhow (Dr. Ambedkar Nagar)',
+    city: 'Mhow, Indore',
+    district: 'Indore',
+    state: 'Madhya Pradesh',
+    approxDistanceKm: 12.0,
+    lat: 22.5534,
+    lng: 75.7634,
+  },
+  '453332': {
+    pincode: '453332',
+    zoneName: 'Mhow Cantonment',
+    city: 'Mhow Cantt, Indore',
+    district: 'Indore',
+    state: 'Madhya Pradesh',
+    approxDistanceKm: 13.5,
+    lat: 22.5600,
+    lng: 75.7800,
+  },
+  '453001': {
+    pincode: '453001',
+    zoneName: 'Rau / Pithampur Link',
+    city: 'Rau, Indore',
+    district: 'Indore',
+    state: 'Madhya Pradesh',
+    approxDistanceKm: 14.2,
+    lat: 22.6280,
+    lng: 75.8050,
+  },
+};
+
 const PIN_PREFIX_MAP: Record<string, { city: string; district: string; state: string }> = {
   '11': { city: 'New Delhi, Delhi', district: 'South/Central Delhi', state: 'Delhi' },
   '12': { city: 'Gurugram / Faridabad', district: 'Gurugram', state: 'Haryana' },
@@ -35,6 +117,22 @@ export class DeliveryZonesService {
   private async resolveLocation(pincode: string): Promise<{ city: string; district: string; state: string }> {
     const cached = this.locationCache.get(pincode);
     if (cached) return cached;
+
+    if (pincode === '454774') {
+      const sagoreLoc = { city: 'Sagore, Pithampur', district: 'Dhar', state: 'Madhya Pradesh' };
+      this.locationCache.set(pincode, sagoreLoc);
+      return sagoreLoc;
+    }
+
+    if (SAGORE_LOCAL_PINCODES[pincode]) {
+      const loc = {
+        city: SAGORE_LOCAL_PINCODES[pincode].city,
+        district: SAGORE_LOCAL_PINCODES[pincode].district,
+        state: SAGORE_LOCAL_PINCODES[pincode].state,
+      };
+      this.locationCache.set(pincode, loc);
+      return loc;
+    }
 
     // Try resolving via postal pincode API with strict 1.5s timeout
     try {
@@ -72,41 +170,83 @@ export class DeliveryZonesService {
     return { city: '', district: '', state: '' };
   }
 
-  async checkPincode(pincode: string) {
-    const trimmedPin = pincode.trim();
-    const [zone, location] = await Promise.all([
-      this.prisma.deliveryZone.findUnique({
-        where: { pincode: trimmedPin },
-      }),
-      this.resolveLocation(trimmedPin),
-    ]);
+  async checkPincode(pincode: string, lat?: number, lng?: number) {
+    const cleanPin = pincode.trim().replace(/\D/g, '');
+    const location = await this.resolveLocation(cleanPin);
 
-    if (!zone || !zone.isActive) {
+    // 1. Determine distance from Sagore Kitchen (22.6288, 75.5684)
+    let distanceKm: number;
+    const hasCoordinates = typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng);
+
+    if (hasCoordinates) {
+      distanceKm = calculateHaversineDistanceKm(SAGORE_KITCHEN_LAT, SAGORE_KITCHEN_LNG, lat, lng);
+    } else if (SAGORE_LOCAL_PINCODES[cleanPin]) {
+      distanceKm = SAGORE_LOCAL_PINCODES[cleanPin].approxDistanceKm;
+    } else if (cleanPin === '454774') {
+      distanceKm = 2.0;
+    } else {
+      // Any other pincode without coordinates outside Sagore region (e.g. Indore 452001, Dhar 454001, Delhi 110017)
+      // Estimate minimum distance based on location
+      distanceKm = cleanPin.startsWith('454') ? 22.0 : cleanPin.startsWith('452') ? 28.0 : 45.0;
+    }
+
+    // 2. Beyond 15km: Delivery is strictly NOT available
+    if (distanceKm > MAX_DELIVERY_RADIUS_KM) {
       return {
         serviceable: false,
-        pincode: trimmedPin,
+        pincode: cleanPin,
+        distanceKm,
         city: location.city || null,
         district: location.district || null,
         state: location.state || null,
-        message: location.city
-          ? `We do not deliver to ${location.city} yet. Service currently in South & Central Delhi.`
-          : 'Currently we do not deliver to this pincode.',
+        minOrderPaise: 0,
+        deliveryFeePaise: 0,
+        isFreeDelivery: false,
+        message: `Delivery not available beyond 15 km from Sagore Kitchen. (Your location is ~${distanceKm} km away)`,
       };
     }
 
+    // 3. Within 5km: FREE Delivery (Delivery Fee = ₹0)
+    if (distanceKm <= FREE_DELIVERY_RADIUS_KM) {
+      const zoneName = cleanPin === '454774' ? 'Sagore Central Zone' : `Sagore Zone (~${distanceKm} km)`;
+      return {
+        serviceable: true,
+        zoneId: 'zone-sagore-454774',
+        zoneName,
+        pincode: cleanPin,
+        city: location.city || 'Sagore, Pithampur',
+        district: location.district || 'Dhar',
+        state: location.state || 'Madhya Pradesh',
+        distanceKm,
+        minOrderPaise: 0,
+        deliveryFeePaise: 0, // FREE DELIVERY within 5km!
+        isFreeDelivery: true,
+        freeDeliveryThresholdPaise: 0,
+        estimatedDeliveryMinutes: 30,
+        message: `✓ Delivering to Sagore (~${distanceKm} km) • Free Delivery (Within 5 km)`,
+      };
+    }
+
+    // 4. Beyond 5km up to 15km: Free delivery is removed, standard delivery fee applies
+    const zoneConfig = SAGORE_LOCAL_PINCODES[cleanPin];
+    const deliveryFeePaise = distanceKm <= 10.0 ? 3500 : 4500; // ₹35 up to 10km, ₹45 up to 15km
+    const feeRupees = (deliveryFeePaise / 100).toFixed(0);
+
     return {
       serviceable: true,
-      zoneId: zone.id,
-      zoneName: zone.name,
-      pincode: zone.pincode,
-      city: location.city || 'Delhi',
-      district: location.district || 'Delhi',
-      state: location.state || 'Delhi',
-      minOrderPaise: zone.minOrderPaise,
-      deliveryFeePaise: zone.deliveryFeePaise,
-      freeDeliveryThresholdPaise: zone.freeDeliveryThresholdPaise,
+      zoneId: `zone-sagore-${cleanPin}`,
+      zoneName: `${zoneConfig?.zoneName || 'Sagore Outer Zone'} (~${distanceKm} km)`,
+      pincode: cleanPin,
+      city: zoneConfig?.city || location.city || 'Pithampur Outer',
+      district: zoneConfig?.district || location.district || 'Dhar',
+      state: zoneConfig?.state || location.state || 'Madhya Pradesh',
+      distanceKm,
+      minOrderPaise: 0,
+      deliveryFeePaise, // Fee applies!
+      isFreeDelivery: false,
+      freeDeliveryThresholdPaise: 49900,
       estimatedDeliveryMinutes: 45,
-      message: `Delivering to ${location.city || zone.name}`,
+      message: `✓ Serviceable (~${distanceKm} km from Sagore Kitchen) • Delivery Fee ₹${feeRupees} (Beyond 5 km free zone)`,
     };
   }
 

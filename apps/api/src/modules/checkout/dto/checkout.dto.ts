@@ -42,7 +42,7 @@ export class CalculateQuoteDto {
   @IsNotEmpty()
   deliverySlotId: string;
 
-  @ApiProperty({ example: '110017' })
+  @ApiProperty({ example: '454774' })
   @IsString()
   @IsNotEmpty()
   pincode: string;
@@ -55,27 +55,27 @@ export class CalculateQuoteDto {
 }
 
 export class DeliveryAddressDto {
-  @ApiProperty({ example: 'Flat 402, Sunshine Towers' })
+  @ApiProperty({ example: 'House 42, Main Bazar' })
   @IsString()
   @IsNotEmpty()
   flat: string;
 
-  @ApiProperty({ example: 'Outer Ring Road, Malviya Nagar' })
+  @ApiProperty({ example: 'Sagore Main Road' })
   @IsString()
   @IsNotEmpty()
   street: string;
 
-  @ApiPropertyOptional({ example: 'Near Main Market Metro' })
+  @ApiPropertyOptional({ example: 'Near Sagore Police Station' })
   @IsString()
   @IsOptional()
   landmark?: string;
 
-  @ApiProperty({ example: '110017' })
+  @ApiProperty({ example: '454774' })
   @IsString()
   @IsNotEmpty()
   pincode: string;
 
-  @ApiPropertyOptional({ example: 28.52728 })
+  @ApiPropertyOptional({ example: 22.6288 })
   @IsOptional()
   latitude?: number;
 

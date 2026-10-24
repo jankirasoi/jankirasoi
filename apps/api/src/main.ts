@@ -38,7 +38,10 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
-const compression = require('compression');
+let compression: any = null;
+try {
+  compression = require('compression');
+} catch {}
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -46,8 +49,10 @@ async function bootstrap() {
     rawBody: true,
   });
 
-  // Enable HTTP response compression (gzip/deflate) to minimize payload sizes over free cloud bandwidth
-  app.use(compression());
+  // Enable HTTP response compression (gzip/deflate) if installed
+  if (compression) {
+    app.use(compression());
+  }
 
   // Global Prefix
   app.setGlobalPrefix('api/v1');

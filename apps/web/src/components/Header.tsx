@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation';
 import { api, UserProfile } from '../lib/api';
 import CustomerAuthModal from './CustomerAuthModal';
 import { useCart } from '../context/CartContext';
+import DeliveryStatusPill from './DeliveryStatusPill';
+import LocationMapModal, { LocationData } from './LocationMapModal';
 
 export default function Header() {
   const pathname = usePathname();
@@ -14,6 +16,8 @@ export default function Header() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'PROFILE' | 'ORDERS' | 'EDIT'>('PROFILE');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+  const [locationName, setLocationName] = useState('Sagore, Pithampur');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Sync session on mount and listen to storage events
@@ -77,8 +81,8 @@ export default function Header() {
     window.dispatchEvent(new Event('storage'));
   };
 
-  // Don't show customer header on rider portal or cart page
-  if (pathname === '/cart' || pathname.startsWith('/rider')) return null;
+  // Don't show customer header on admin console, rider portal, or cart page
+  if (pathname === '/cart' || pathname.startsWith('/rider') || pathname.startsWith('/admin')) return null;
 
   const latestOrder = currentUser?.recentOrders && currentUser.recentOrders.length > 0
     ? currentUser.recentOrders[0]
@@ -112,6 +116,31 @@ export default function Header() {
           </Link>
 
 
+
+          {/* Delivery Location Selector Pill */}
+          <button
+            type="button"
+            onClick={() => setIsLocationModalOpen(true)}
+            className="flex items-center gap-1.5 py-1 px-2.5 sm:px-3 rounded-full bg-[#FFF9F0] hover:bg-[#F5ECE0] border border-[#EEE7DC] text-left transition-all shrink-0 max-w-[150px] xs:max-w-[210px] sm:max-w-[260px] group"
+            title="Change delivery location"
+          >
+            <span className="material-symbols-outlined text-[#E25822] text-[18px] shrink-0 group-hover:scale-110 transition-transform">
+              location_on
+            </span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[9px] uppercase font-extrabold text-[#77786F] leading-none">
+                DELIVER TO
+              </span>
+              <div className="flex items-center gap-0.5 min-w-0">
+                <span className="text-xs font-bold text-[#292D26] truncate">
+                  {locationName}
+                </span>
+                <span className="material-symbols-outlined text-[15px] text-[#77786F] shrink-0">
+                  expand_more
+                </span>
+              </div>
+            </div>
+          </button>
 
           {/* Cart Icon & Profile Container */}
           <div className="flex items-center gap-1.5 shrink-0">
@@ -189,13 +218,12 @@ export default function Header() {
                         </div>
                       </div>
                     </div>
-                    <Link
-                      href={`/track?token=${latestOrder.trackingToken}`}
+                    <DeliveryStatusPill
+                      orderNumber={latestOrder.orderNumber}
+                      token={latestOrder.trackingToken}
+                      status={latestOrder.status}
                       onClick={() => setIsDropdownOpen(false)}
-                      className="px-2.5 py-1 rounded-xl bg-primary text-white font-bold text-[11px] hover:bg-emerald-800 transition-colors shrink-0"
-                    >
-                      Track
-                    </Link>
+                    />
                   </div>
                 )}
 
@@ -287,6 +315,16 @@ export default function Header() {
         onLoginSuccess={(user) => {
           setCurrentUser(user);
           setIsAuthOpen(false);
+        }}
+      />
+
+      {/* Delivery Location Selector Modal */}
+      <LocationMapModal
+        isOpen={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+        onConfirm={(loc: LocationData) => {
+          setLocationName(loc.street.split(',')[0] || loc.city);
+          setIsLocationModalOpen(false);
         }}
       />
     </>

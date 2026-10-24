@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { api, DeliverySlot, QuoteResponse, DEFAULT_FOOD_IMAGE, UserProfile } from '../../lib/api';
 import { useCart } from '../../context/CartContext';
 import CustomerAuthModal from '../../components/CustomerAuthModal';
+import LocationMapModal, { LocationData } from '../../components/LocationMapModal';
 
 export default function CartPage() {
   const router = useRouter();
@@ -15,19 +16,30 @@ export default function CartPage() {
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   const quoteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quoteInFlightRef = useRef(false);
+  const quoteErrorCountRef = useRef(0);
+  const isSubmittingOrderRef = useRef(false);
+  const orderIdempotencyKeyRef = useRef<string | null>(null);
+  const showToastRef = useRef(showToast);
+  useEffect(() => {
+    showToastRef.current = showToast;
+  }, [showToast]);
 
   // Address & Customer form state
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAddressConfirmModalOpen, setIsAddressConfirmModalOpen] = useState(false);
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'PROFILE' | 'ORDERS' | 'EDIT'>('PROFILE');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [flat, setFlat] = useState('');
   const [street, setStreet] = useState('');
   const [landmark, setLandmark] = useState('');
-  const [pincode, setPincode] = useState('110017');
-  const [detectedCity, setDetectedCity] = useState<string | null>('New Delhi');
+  const [pincode, setPincode] = useState('454774');
+  const [detectedCity, setDetectedCity] = useState<string | null>('Sagore, Pithampur');
   const [checkingPin, setCheckingPin] = useState(false);
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [isCutleryNeeded, setIsCutleryNeeded] = useState(false);
@@ -67,7 +79,7 @@ export default function CartPage() {
     fetchSlots();
   }, [today]);
 
-  // Fetch logged in customer and prefill address, or prompt auth modal
+  // Fetch logged in customer and prefill address
   useEffect(() => {
     api.getCurrentUser().then((user) => {
       if (user && user.role === 'CUSTOMER') {
@@ -80,25 +92,90 @@ export default function CartPage() {
           if (user.savedAddress.landmark) setLandmark(user.savedAddress.landmark);
           if (user.savedAddress.pincode) setPincode(user.savedAddress.pincode);
         }
-      } else {
-        setCurrentUser(null);
-        // Prompt login & delivery address when user navigates to cart without active session
-        setAuthModalTab('PROFILE');
-        setIsAuthOpen(true);
+      } else if (typeof window !== 'undefined') {
+        // Fallback to local storage so user data is never lost
+        const savedPhone = localStorage.getItem('jr_customer_phone');
+        const savedName = localStorage.getItem('jr_customer_name');
+        const savedAddrRaw =
+          localStorage.getItem('jr_customer_address') ||
+          localStorage.getItem('jr_selected_address');
+        if (savedPhone) {
+          let addrObj: any = undefined;
+          if (savedAddrRaw) {
+            try {
+              addrObj = JSON.parse(savedAddrRaw);
+            } catch {}
+          }
+          const restored: UserProfile = {
+            id: 'cust_' + savedPhone,
+            name: savedName || 'Customer',
+            phone: savedPhone,
+            role: 'CUSTOMER',
+            savedAddress: addrObj,
+          };
+          setCurrentUser(restored);
+          setCustomerPhone(savedPhone);
+          if (savedName) setCustomerName(savedName);
+          if (addrObj) {
+            if (addrObj.flat) setFlat(addrObj.flat);
+            if (addrObj.street) setStreet(addrObj.street);
+            if (addrObj.landmark) setLandmark(addrObj.landmark);
+            if (addrObj.pincode) setPincode(addrObj.pincode);
+          }
+        }
       }
     });
   }, []);
 
-  // Request Server-Authoritative Quote
-  const requestQuote = useCallback(async () => {
+  // Online/offline connection listener
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setIsOnline(navigator.onLine);
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      showToastRef.current('Internet restored! Updating billing quote...');
+      requestQuoteRef.current(true);
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      showToastRef.current('Connection lost. Please check your internet connection.', true);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Invalidate idempotency key whenever cart items change
+  useEffect(() => {
+    orderIdempotencyKeyRef.current = null;
+  }, [items]);
+
+  // Request Server-Authoritative Quote (Resilient, Non-Looping)
+  const requestQuote = useCallback(async (isManualRetry = false) => {
     if (items.length === 0 || !selectedSlotId) return;
 
+    // Fast-exit if browser is currently offline
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setQuoteLoading(false);
+      return;
+    }
+
+    // In-flight guard to prevent hammering concurrent requests
+    if (quoteInFlightRef.current) return;
+    quoteInFlightRef.current = true;
     setQuoteLoading(true);
+
     try {
       const q = await api.calculateQuote({
         serviceDate: today,
         deliverySlotId: selectedSlotId,
-        pincode: pincode.trim() || '110017',
+        pincode: pincode.trim() || '454774',
         items: items.map((i) => {
           let pid = i.productId;
           if (pid === 'spec-full-thali') pid = '09f67dad-2306-49b7-88c7-cae050592f14';
@@ -113,26 +190,42 @@ export default function CartPage() {
         }),
       });
       setQuote(q);
+      quoteErrorCountRef.current = 0;
     } catch (err: any) {
       console.warn('Quotation notice:', err.message);
-      showToast(err.message || 'Could not fetch quote for selected items', true);
+      // Only toast on explicit manual retry or first error to prevent infinite toast spam
+      if (isManualRetry || quoteErrorCountRef.current === 0) {
+        showToastRef.current(
+          typeof navigator !== 'undefined' && !navigator.onLine
+            ? 'Connection lost. Please check your internet.'
+            : (err.message || 'Could not fetch quote for selected items'),
+          true
+        );
+      }
+      quoteErrorCountRef.current += 1;
     } finally {
+      quoteInFlightRef.current = false;
       setQuoteLoading(false);
     }
-  }, [items, selectedSlotId, pincode, today, showToast]);
+  }, [items, selectedSlotId, pincode, today]);
 
-  const debouncedRequestQuote = useCallback(() => {
-    if (quoteDebounceRef.current) clearTimeout(quoteDebounceRef.current);
-    quoteDebounceRef.current = setTimeout(() => {
-      requestQuote();
-    }, 700);
+  const requestQuoteRef = useRef(requestQuote);
+  useEffect(() => {
+    requestQuoteRef.current = requestQuote;
   }, [requestQuote]);
 
+  // Debounced quote request when items or slot changes (No circular callback dependencies)
   useEffect(() => {
     if (items.length > 0 && selectedSlotId) {
-      debouncedRequestQuote();
+      if (quoteDebounceRef.current) clearTimeout(quoteDebounceRef.current);
+      quoteDebounceRef.current = setTimeout(() => {
+        requestQuoteRef.current();
+      }, 600);
     }
-  }, [items, selectedSlotId, debouncedRequestQuote]);
+    return () => {
+      if (quoteDebounceRef.current) clearTimeout(quoteDebounceRef.current);
+    };
+  }, [items, selectedSlotId, pincode]);
 
   // Automated Pincode Verification & City Loader
   useEffect(() => {
@@ -156,14 +249,18 @@ export default function CartPage() {
         }
 
         if (res.serviceable) {
+          const feePaise = res.deliveryFeePaise ?? 0;
+          const feeText = feePaise === 0
+            ? 'Free Delivery (Within 5 km)'
+            : `Delivery Fee: ₹${(feePaise / 100).toFixed(0)} (Beyond 5 km free zone)`;
           setPinStatusMsg({
-            text: `✓ Serviceable zone: ${res.zoneName || res.city || 'Delhi'} (Delivery Fee: ₹${((res.deliveryFeePaise || 0) / 100).toFixed(0)})`,
+            text: `✓ ${res.zoneName || res.city || 'Sagore'} • ${feeText}`,
             isError: false,
           });
-          requestQuote();
+          requestQuoteRef.current();
         } else {
           setPinStatusMsg({
-            text: res.message || (res.city ? `We do not deliver to ${res.city} yet.` : 'Pincode outside delivery area.'),
+            text: res.message || 'Delivery not available beyond 15 km from Sagore Kitchen.',
             isError: true,
           });
         }
@@ -182,38 +279,62 @@ export default function CartPage() {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [pincode, requestQuote]);
+  }, [pincode]);
 
-  // Place Order Handler
+  // Place Order Handler with 1-Click Address Confirmation
   const handlePlaceOrder = async () => {
-    if (!currentUser) {
-      setAuthModalTab('PROFILE');
-      setIsAuthOpen(true);
-      showToast('Please enter your mobile number and address to proceed.', true);
+    // 1. Guard against concurrent / duplicate submissions
+    if (isSubmittingOrderRef.current || placingOrder) {
       return;
     }
 
-    if (
-      !customerName.trim() ||
-      !customerPhone.trim() ||
-      !flat.trim() ||
-      !street.trim() ||
-      !pincode.trim()
-    ) {
-      setAuthModalTab('PROFILE');
-      setIsAuthOpen(true);
-      showToast('Please fill all required delivery details.', true);
+    // 2. Offline check
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      showToast('You are currently offline. Please check your internet connection before placing order.', true);
       return;
     }
 
+    // If phone or address details are missing, ask user to fill once
+    if (!customerPhone.trim() || !flat.trim() || !street.trim() || !pincode.trim()) {
+      if (!flat.trim() || !street.trim()) {
+        setIsMapModalOpen(true);
+        showToast('Please select your delivery location on the map.', true);
+      } else {
+        setAuthModalTab('PROFILE');
+        setIsAuthOpen(true);
+        showToast('Please provide your mobile number to proceed.', true);
+      }
+      return;
+    }
+
+    if (pinStatusMsg?.isError) {
+      showToast(pinStatusMsg.text || 'Cannot deliver to selected location (Beyond 15 km of Sagore Kitchen).', true);
+      return;
+    }
+
+    // Show 1-click address confirmation modal
+    setIsAddressConfirmModalOpen(true);
+  };
+
+  // Execute Order Placement after Address Confirmation
+  const executeOrderPlacement = async () => {
+    setIsAddressConfirmModalOpen(false);
+
+    if (isSubmittingOrderRef.current || placingOrder) {
+      return;
+    }
+
+    // Synchronously lock order submission immediately
+    isSubmittingOrderRef.current = true;
     setPlacingOrder(true);
+
     try {
       let activeQuoteToken = quote?.quoteToken;
       if (!activeQuoteToken) {
         const q = await api.calculateQuote({
           serviceDate: today,
           deliverySlotId: selectedSlotId || slots[0]?.id || 'slot-lunch',
-          pincode: pincode.trim() || '110017',
+          pincode: pincode.trim() || '454774',
           items: items.map((i) => {
             let pid = i.productId;
             if (pid === 'spec-full-thali') pid = '09f67dad-2306-49b7-88c7-cae050592f14';
@@ -238,28 +359,89 @@ export default function CartPage() {
         deliveryNotes.trim() ? `Cooking: ${deliveryNotes.trim()}` : null,
       ].filter(Boolean).join(' • ');
 
-      const orderResult = await api.placeOrder(
-        {
-          quoteToken: activeQuoteToken,
-          paymentMethod,
-          customerName: customerName.trim(),
-          customerPhone: customerPhone.trim(),
-          deliveryAddress: {
-            flat: flat.trim(),
-            street: street.trim(),
-            landmark: landmark.trim() || undefined,
-            pincode: pincode.trim(),
-          },
-          deliveryNotes: compiledNotes || undefined,
-        },
-        'idem_' + Date.now()
-      );
+      // Maintain persistent idempotency key for this order session so retries never double-order
+      if (!orderIdempotencyKeyRef.current) {
+        orderIdempotencyKeyRef.current = `idem_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      }
 
+      let orderResult;
+      const orderPayload = {
+        paymentMethod,
+        customerName: customerName.trim() || 'Customer',
+        customerPhone: customerPhone.trim(),
+        deliveryAddress: {
+          flat: flat.trim(),
+          street: street.trim(),
+          landmark: landmark.trim() || undefined,
+          pincode: pincode.trim(),
+        },
+        deliveryNotes: compiledNotes || undefined,
+      };
+
+      try {
+        orderResult = await api.placeOrder(
+          {
+            ...orderPayload,
+            quoteToken: activeQuoteToken,
+          },
+          orderIdempotencyKeyRef.current
+        );
+      } catch (placeErr: any) {
+        // If quotation expired or invalid, auto-refresh quote once and retry seamlessly
+        const isQuoteExpired =
+          placeErr.message?.toLowerCase().includes('quotation has expired') ||
+          placeErr.message?.toLowerCase().includes('invalid quote') ||
+          placeErr.message?.toLowerCase().includes('quote');
+
+        if (isQuoteExpired) {
+          console.warn('Quote expired, auto-refreshing quote and retrying placeOrder...');
+          const freshQ = await api.calculateQuote({
+            serviceDate: today,
+            deliverySlotId: selectedSlotId || slots[0]?.id || 'slot-lunch',
+            pincode: pincode.trim() || '454774',
+            items: items.map((i) => {
+              let pid = i.productId;
+              if (pid === 'spec-full-thali') pid = '09f67dad-2306-49b7-88c7-cae050592f14';
+              if (pid === 'spec-home-thali') pid = 'cd02708b-cf9d-460a-878d-3597115602b7';
+              if (pid === 'spec-roti-sabzi') pid = 'a1c1e8ff-8f9e-4a82-98f3-876bd6f9e0f3';
+              return {
+                productId: pid,
+                variantId: i.variantId,
+                quantity: i.quantity,
+                selectedAddonOptionIds: i.selectedAddonOptionIds,
+              };
+            }),
+          });
+          setQuote(freshQ);
+          // New idempotency key for fresh quote attempt
+          orderIdempotencyKeyRef.current = `idem_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+          orderResult = await api.placeOrder(
+            {
+              ...orderPayload,
+              quoteToken: freshQ.quoteToken,
+            },
+            orderIdempotencyKeyRef.current
+          );
+        } else {
+          throw placeErr;
+        }
+      }
+
+      // Successfully placed: reset idempotency key and clear cart
+      orderIdempotencyKeyRef.current = null;
       clearCart();
+
       if (typeof window !== 'undefined') {
         try {
           window.localStorage.setItem('jr_last_tracking_token', orderResult.trackingToken);
           window.localStorage.setItem('jr_last_order_number', orderResult.orderNumber);
+          window.localStorage.setItem('jr_customer_phone', customerPhone.trim());
+          if (customerName) window.localStorage.setItem('jr_customer_name', customerName.trim());
+          window.localStorage.setItem(
+            'jr_customer_address',
+            JSON.stringify({ flat, street, landmark, pincode })
+          );
           const recents = JSON.parse(window.localStorage.getItem('jr_recent_orders') || '[]');
           recents.unshift({
             orderNumber: orderResult.orderNumber,
@@ -285,7 +467,19 @@ export default function CartPage() {
       }, 800);
     } catch (err: any) {
       setPlacingOrder(false);
-      showToast(err.message || 'Failed to place order', true);
+      isSubmittingOrderRef.current = false;
+
+      const isNetworkError =
+        (typeof navigator !== 'undefined' && !navigator.onLine) ||
+        err.message?.toLowerCase().includes('fetch') ||
+        err.message?.toLowerCase().includes('network') ||
+        err.message?.toLowerCase().includes('failed to fetch');
+
+      if (isNetworkError) {
+        showToast('Connection interrupted. Don\'t worry, your order was not duplicated. Please verify connection and retry.', true);
+      } else {
+        showToast(err.message || 'Failed to place order', true);
+      }
     }
   };
 
@@ -316,7 +510,9 @@ export default function CartPage() {
   }
 
   const itemsTotalPaise = items.reduce((acc, i) => acc + i.pricePaise * i.quantity, 0);
-  const finalTotalPaise = (quote?.totalPaise ?? itemsTotalPaise + 1500) + tipPaise;
+  const deliveryFeePaise = quote?.deliveryFeePaise ?? 0;
+  const packagingFeePaise = quote?.packagingFeePaise ?? 1500;
+  const finalTotalPaise = (quote?.totalPaise ?? (itemsTotalPaise + deliveryFeePaise + packagingFeePaise)) + tipPaise;
 
   const COMPLETE_MEAL_ADDONS = [
     {
@@ -353,6 +549,13 @@ export default function CartPage() {
 
   return (
     <main className="flex flex-col relative w-full pb-36 bg-[#F4F4F6] min-h-screen">
+      {/* Offline Alert Banner */}
+      {!isOnline && (
+        <div className="bg-amber-600 text-white text-xs font-bold py-2 px-4 flex items-center justify-center gap-2 shadow-inner sticky top-0 z-50 animate-in fade-in">
+          <span className="material-symbols-outlined text-[18px]">wifi_off</span>
+          <span>No internet connection. Waiting for network to resume billing...</span>
+        </div>
+      )}
       {/* 1. Top Header Bar with Back Button, Delivery Address, and Profile Action */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200/80 px-3 sm:px-4 py-2.5 shadow-2xs">
         <div className="max-w-xl mx-auto flex items-center justify-between gap-2">
@@ -367,9 +570,9 @@ export default function CartPage() {
               <span className="material-symbols-outlined text-[20px] sm:text-[22px]">arrow_back</span>
             </button>
             <div
-              onClick={() => setIsEditingAddress(!isEditingAddress)}
+              onClick={() => setIsMapModalOpen(true)}
               className="cursor-pointer flex items-center gap-1.5 min-w-0 hover:opacity-85 transition-opacity"
-              title="Click to view or edit delivery address"
+              title="Click to select or change delivery location"
             >
               <div className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
                 <span className="material-symbols-outlined text-[17px]">location_on</span>
@@ -380,24 +583,25 @@ export default function CartPage() {
                     {currentUser ? 'Delivering to' : 'Delivery Address'}
                   </span>
                   <span className="material-symbols-outlined text-[16px] text-slate-500 shrink-0">
-                    {isEditingAddress ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
+                    expand_more
                   </span>
                 </div>
                 <span className="text-[11px] text-slate-500 truncate max-w-[150px] sm:max-w-xs font-medium">
-                  {flat ? `${flat}${street ? `, ${street}` : ''} • ${pincode}` : 'Tap to enter address'}
+                  {flat ? `${flat}${street ? `, ${street}` : ''} • ${pincode}` : 'Tap to select location on map'}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Right: Address toggle & Profile / Login button */}
+          {/* Right: Address Change Button & Profile / Login button */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => setIsEditingAddress(!isEditingAddress)}
-              className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-200 transition-colors shrink-0"
+              onClick={() => setIsMapModalOpen(true)}
+              className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-200 transition-colors shrink-0 flex items-center gap-0.5"
             >
-              {isEditingAddress ? 'Done' : 'Change'}
+              <span>Change</span>
+              <span className="material-symbols-outlined text-[13px]">expand_more</span>
             </button>
 
             {/* Profile / Account Button */}
@@ -436,9 +640,9 @@ export default function CartPage() {
       </header>
 
       <div className="flex flex-col w-full max-w-xl mx-auto pb-4">
-        {/* 3. Minimalistic Items Count & Lunch/Dinner Slot Switcher */}
+        {/* 3. Minimalistic Items Summary Bar */}
         <div className="px-3 pt-3 flex items-center justify-between gap-2">
-          {/* Minimalist Items Count */}
+          {/* Minimalist Items Count & Subtotal */}
           <div className="flex items-center gap-1.5 text-xs">
             <span className="font-bold text-slate-800">
               {items.reduce((a, b) => a + b.quantity, 0)} {items.reduce((a, b) => a + b.quantity, 0) === 1 ? 'item' : 'items'}
@@ -447,54 +651,6 @@ export default function CartPage() {
             <span className="font-extrabold text-slate-900">
               ₹{(itemsTotalPaise / 100).toFixed(0)}
             </span>
-          </div>
-
-          {/* Lunch vs Dinner Switching Pills with Clean SVG Icons */}
-          <div className="inline-flex items-center gap-1 bg-white p-0.5 rounded-full border border-slate-200/90 shadow-2xs">
-            {(slots.length > 0
-              ? slots
-              : [
-                  { id: 'slot-lunch', mealType: 'LUNCH', label: 'Lunch', startTime: '12:30', endTime: '13:30' },
-                  { id: 'slot-dinner', mealType: 'DINNER', label: 'Dinner', startTime: '19:30', endTime: '20:30' },
-                ]
-            ).map((slot: any) => {
-              const isSelected = selectedSlotId === slot.id || (slots.length > 0 && !selectedSlotId && slot.mealType === 'LUNCH');
-              const isLunch = slot.mealType === 'LUNCH';
-              return (
-                <button
-                  key={slot.id}
-                  type="button"
-                  onClick={() => setSelectedSlotId(slot.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                    isSelected
-                      ? 'bg-[#008848] text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  {isLunch ? (
-                    <svg className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-amber-200' : 'text-amber-500'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="4"/>
-                      <path d="M12 2v2"/>
-                      <path d="M12 20v2"/>
-                      <path d="m4.93 4.93 1.41 1.41"/>
-                      <path d="m17.66 17.66 1.41 1.41"/>
-                      <path d="M2 12h2"/>
-                      <path d="M20 12h2"/>
-                      <path d="m6.34 17.66-1.41 1.41"/>
-                      <path d="m19.07 4.93-1.41 1.41"/>
-                    </svg>
-                  ) : (
-                    <svg className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-indigo-200' : 'text-indigo-500'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-                    </svg>
-                  )}
-                  <span>{isLunch ? 'Lunch' : 'Dinner'}</span>
-                  <span className={`text-[10px] font-medium hidden xs:inline ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
-                    ({slot.startTime}–{slot.endTime})
-                  </span>
-                </button>
-              );
-            })}
           </div>
         </div>
 
@@ -836,7 +992,7 @@ export default function CartPage() {
               <div className="flex flex-col gap-1.5 pt-0.5">
                 <p className="text-[11px] text-slate-500 font-medium">Delivery Mode</p>
                 <div className="px-3 py-2 rounded-xl border border-emerald-600 bg-emerald-50 text-emerald-900 text-xs font-bold flex items-center gap-1.5 shadow-2xs">
-                  <span>⚡</span>
+                  <span className="material-symbols-outlined text-[16px] text-emerald-700">bolt</span>
                   <span>Standard Fresh Dispatch (30-40 mins)</span>
                 </div>
               </div>
@@ -857,11 +1013,24 @@ export default function CartPage() {
               <span className="font-semibold text-slate-900">₹{(itemsTotalPaise / 100).toFixed(0)}</span>
             </div>
             <div className="flex justify-between text-xs text-slate-600">
-              <span>Delivery Partner Fee</span>
-              <span className="font-extrabold text-emerald-700">FREE</span>
+              <span className="flex items-center gap-1">
+                <span>Delivery Partner Fee</span>
+                {deliveryFeePaise === 0 ? (
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
+                    Free (Within 5 km)
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded">
+                    Beyond 5 km
+                  </span>
+                )}
+              </span>
+              <span className={`font-extrabold ${deliveryFeePaise === 0 ? 'text-emerald-700' : 'text-slate-900'}`}>
+                {deliveryFeePaise === 0 ? 'FREE' : `₹${(deliveryFeePaise / 100).toFixed(0)}`}
+              </span>
             </div>
             <div className="flex justify-between text-xs text-slate-600">
-              <span>Delivery Tip &amp; Platform Fee</span>
+              <span>Platform &amp; Packaging Fee</span>
               <span className="font-semibold text-slate-900">₹15</span>
             </div>
             {tipPaise > 0 && (
@@ -904,11 +1073,19 @@ export default function CartPage() {
           <button
             type="button"
             onClick={handlePlaceOrder}
-            disabled={placingOrder || quoteLoading}
+            disabled={placingOrder || quoteLoading || pinStatusMsg?.isError}
             className="bg-[#008848] hover:bg-[#00703c] active:scale-98 text-white font-extrabold text-sm sm:text-base px-6 sm:px-8 py-3 rounded-xl shadow-md transition-all flex items-center gap-2 shrink-0 disabled:opacity-50"
           >
-            <span>Pay ₹{(finalTotalPaise / 100).toFixed(0)}</span>
-            {placingOrder && <span className="animate-spin text-xs">⏳</span>}
+            <span>
+              {placingOrder
+                ? 'Processing...'
+                : pinStatusMsg?.isError
+                ? 'Delivery Unavailable'
+                : `Pay ₹${(finalTotalPaise / 100).toFixed(0)}`}
+            </span>
+            {placingOrder && (
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0 inline-block" />
+            )}
           </button>
         </div>
       </div>
@@ -951,6 +1128,16 @@ export default function CartPage() {
               }}
               className="p-5 flex flex-col gap-3 overflow-y-auto"
             >
+              {/* Map & Sagore Presets Trigger */}
+              <button
+                type="button"
+                onClick={() => setIsMapModalOpen(true)}
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-colors"
+              >
+                <span className="material-symbols-outlined text-[17px] text-emerald-400">explore</span>
+                <span>Select on Interactive Map / Sagore Presets</span>
+              </button>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
@@ -1005,7 +1192,7 @@ export default function CartPage() {
                     required
                     value={street}
                     onChange={(e) => setStreet(e.target.value)}
-                    placeholder="e.g. Malviya Nagar"
+                    placeholder="e.g. Main Market, Sagore"
                     className="w-full text-xs sm:text-sm px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                   />
                 </div>
@@ -1019,7 +1206,7 @@ export default function CartPage() {
                     maxLength={6}
                     value={pincode}
                     onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="e.g. 110017"
+                    placeholder="e.g. 454774"
                     className="w-full text-xs sm:text-sm px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono"
                   />
                 </div>
@@ -1174,6 +1361,102 @@ export default function CartPage() {
         </div>
       )}
 
+      {/* 1-Click Delivery Address Confirmation Bottom Sheet */}
+      {isAddressConfirmModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="absolute inset-0" onClick={() => setIsAddressConfirmModalOpen(false)} />
+          <div className="relative w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 z-10 flex flex-col gap-3.5 animate-in slide-in-from-bottom-4">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                  <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 leading-tight">
+                    Confirm Delivery Address
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Please verify your delivery address</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddressConfirmModalOpen(false)}
+                className="w-7 h-7 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Address Details Card */}
+            <div className="bg-[#FFF9F0] border border-[#EEE7DC] rounded-2xl p-3.5 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-emerald-700 text-[18px]">person</span>
+                  <span className="font-extrabold text-xs text-slate-800">{customerName || 'Customer'}</span>
+                  <span className="text-slate-400 text-xs">•</span>
+                  <span className="text-xs font-semibold text-slate-600 font-mono">+91 {customerPhone}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddressConfirmModalOpen(false);
+                    setIsMapModalOpen(true);
+                  }}
+                  className="text-[11px] font-bold text-emerald-700 hover:underline"
+                >
+                  Change
+                </button>
+              </div>
+
+              <div className="flex items-start gap-2 pt-2 border-t border-[#EEE7DC]/80 text-xs text-slate-700 leading-snug">
+                <span className="material-symbols-outlined text-[#E25822] text-[18px] shrink-0 mt-0.5">location_on</span>
+                <div>
+                  <span className="font-bold text-slate-900">{flat}</span>, {street}
+                  {landmark && <span> (Near {landmark})</span>}
+                  <div className="text-[11px] font-bold text-emerald-700 mt-1 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                    <span>Sagore, Pithampur - {pincode}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                onClick={executeOrderPlacement}
+                disabled={placingOrder}
+                className="w-full py-3.5 rounded-xl bg-[#008848] hover:bg-[#00703c] text-white font-extrabold text-sm shadow-md active:scale-98 transition-all flex items-center justify-center gap-2"
+              >
+                {placingOrder ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                    <span>Confirm &amp; Proceed</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddressConfirmModalOpen(false);
+                  setIsMapModalOpen(true);
+                }}
+                className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all text-center"
+              >
+                Change Delivery Address
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* Customer Auth Modal */}
       <CustomerAuthModal
         isOpen={isAuthOpen}
@@ -1190,6 +1473,26 @@ export default function CartPage() {
             if (user.savedAddress.pincode) setPincode(user.savedAddress.pincode);
           }
           showToast(`Welcome ${user.name || user.phone}!`);
+        }}
+      />
+
+      {/* Location & Map Selector Modal */}
+      <LocationMapModal
+        isOpen={isMapModalOpen}
+        onClose={() => setIsMapModalOpen(false)}
+        initialPincode={pincode}
+        initialFlat={flat}
+        initialStreet={street}
+        initialLandmark={landmark}
+        onConfirm={(loc: LocationData) => {
+          setFlat(loc.flat);
+          setStreet(loc.street);
+          setLandmark(loc.landmark);
+          setPincode(loc.pincode);
+          setDetectedCity(loc.city);
+          setIsMapModalOpen(false);
+          showToast(`✓ Location updated: ${loc.street}, ${loc.city} (${loc.pincode})`);
+          requestQuoteRef.current(true);
         }}
       />
     </main>
