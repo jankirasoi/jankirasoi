@@ -79,8 +79,8 @@ export class OrdersService {
     }
 
     const assignedRider = (order as any).riderAssignments?.[0];
-    const riderName = assignedRider?.rider?.user?.name || (order.status === 'OUT_FOR_DELIVERY' || order.status === 'READY_FOR_PICKUP' ? 'Lakhan' : undefined);
-    const riderPhone = assignedRider?.rider?.user?.phone || '+919812345678';
+    const riderName: string | null = assignedRider?.rider?.user?.name ?? null;
+    const riderPhone: string | null = assignedRider?.rider?.user?.phone ?? null;
 
     // Mask phone number for privacy: e.g. 98XXXXXX10
     const rawPhone = order.customerPhone;
@@ -149,16 +149,11 @@ export class OrdersService {
         RidersService.getRiderLocation(assigned.userId);
 
       riderData = {
-        name: assigned.user?.name || 'Assigned Delivery Partner',
-        phone: assigned.user?.phone || '',
-        vehicleNumber: assigned.vehicleNumber || 'MP-09-JR-2026',
-        location: liveLoc || {
-          latitude: 22.6288,
-          longitude: 75.5684,
-          heading: 0,
-          speed: 0,
-          updatedAt: new Date().toISOString(),
-        },
+        name: assigned.user?.name || null,
+        phone: assigned.user?.phone || null,
+        vehicleNumber: assigned.vehicleNumber || null,
+        // Only expose location when real telemetry is available
+        location: liveLoc || null,
       };
     }
 

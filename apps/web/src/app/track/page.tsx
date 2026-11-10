@@ -90,8 +90,8 @@ function PartnerCard({
   order: TrackOrderResponse;
   bubbleText: string;
 }) {
-  const riderName = order.riderName || 'Lakhan';
-  const riderPhone = order.riderPhone || '+919812345678';
+  const riderName = order.riderName ?? null;
+  const riderPhone = order.riderPhone ?? null;
   const [selectedTip, setSelectedTip] = useState<number | null>(null);
   const [tipSuccess, setTipSuccess] = useState(false);
 
@@ -109,27 +109,35 @@ function PartnerCard({
           <LakhanAvatar size={50} />
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-extrabold text-slate-900 leading-snug">
-              I&apos;m {riderName}, your delivery partner
+              I&apos;m {riderName || 'your delivery partner'}, ready with your order
             </h2>
           </div>
         </div>
 
-        {/* Call Icon Button */}
-        <a
-          href={`tel:${riderPhone}`}
-          className="shrink-0 w-10 h-10 rounded-full border border-emerald-600/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center justify-center transition-colors active:scale-95 shadow-2xs"
-          aria-label={`Call ${riderName}`}
-          title={`Call ${riderName}`}
-        >
-          <svg className="w-5 h-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-            />
-          </svg>
-        </a>
+        {/* Call Icon Button – only show real number */}
+        {riderPhone ? (
+          <a
+            href={`tel:${riderPhone}`}
+            className="shrink-0 w-10 h-10 rounded-full border border-emerald-600/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center justify-center transition-colors active:scale-95 shadow-2xs"
+            aria-label={`Call ${riderName || 'delivery partner'}`}
+            title={`Call ${riderName || 'delivery partner'}`}
+          >
+            <svg className="w-5 h-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+              />
+            </svg>
+          </a>
+        ) : (
+          <div className="shrink-0 w-10 h-10 rounded-full border border-slate-200 bg-slate-100 text-slate-400 flex items-center justify-center">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            </svg>
+          </div>
+        )}
       </div>
 
       {/* Speech Bubble (Exact Match to Image 2: Light Green with Pointer) */}
@@ -166,7 +174,7 @@ function PartnerCard({
           ))}
           {tipSuccess && (
             <span className="text-[11px] font-bold text-emerald-700 animate-fade-in flex items-center gap-1">
-              ✓ ₹{selectedTip} tip added! {riderName} says thank you ❤️
+              ✓ ₹{selectedTip} tip added! {riderName ? `${riderName} says` : 'They say'} thank you ❤️
             </span>
           )}
         </div>
@@ -281,7 +289,7 @@ function DeliveryDetailsCard({ order }: { order: TrackOrderResponse }) {
               Verbal Handover PIN
             </span>
             <span className="text-xs text-[#78350F] leading-tight">
-              Share code with {order.riderName || 'Lakhan'} on delivery
+              Share code with {order.riderName || 'your delivery partner'} on delivery
             </span>
           </div>
           <button
@@ -423,10 +431,12 @@ function MainTrackingView({
       {/* ── Scrollable Body Area ── */}
       <div className="flex-1 w-full max-w-md mx-auto px-3.5 py-3 flex flex-col gap-3.5 pb-24">
         {/* 1. Street Map with Live Moving Rider & Blue Route */}
-        <TrackingRoadMap status={order.status} riderName={order.riderName || 'Lakhan'} />
+        <TrackingRoadMap status={order.status} riderName={order.riderName ?? undefined} />
 
-        {/* 2. Delivery Partner Lakhan Card matching Image 2 */}
-        <PartnerCard order={order} bubbleText={blinkit.bubble} />
+        {/* 2. Delivery Partner Card – only shown when a real rider is assigned */}
+        {order.riderName && (
+          <PartnerCard order={order} bubbleText={blinkit.bubble} />
+        )}
 
         {/* 3. Delivery Details Card matching Image 2 */}
         <DeliveryDetailsCard order={order} />

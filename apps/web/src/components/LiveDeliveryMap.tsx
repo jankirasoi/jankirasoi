@@ -37,12 +37,12 @@ export default function LiveDeliveryMap({
   const polylineRef = useRef<any>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Active current driver location (interpolated smoothly)
-  const [currentDriverPos, setCurrentDriverPos] = useState<{ lat: number; lng: number; heading: number }>({
-    lat: driverLocation?.latitude || kitchenLocation.latitude,
-    lng: driverLocation?.longitude || kitchenLocation.longitude,
-    heading: driverLocation?.heading || 0,
-  });
+  // Active current driver location (interpolated smoothly) — null until real location arrives
+  const [currentDriverPos, setCurrentDriverPos] = useState<{ lat: number; lng: number; heading: number } | null>(
+    driverLocation
+      ? { lat: driverLocation.latitude, lng: driverLocation.longitude, heading: driverLocation.heading ?? 0 }
+      : null
+  );
 
   const [isSimulating, setIsSimulating] = useState(false);
   const simulationIntervalRef = useRef<any>(null);
@@ -60,15 +60,6 @@ export default function LiveDeliveryMap({
     return Math.round(R * c * 10) / 10;
   }, []);
 
-  const distanceKm = getDistanceKm(
-    currentDriverPos.lat,
-    currentDriverPos.lng,
-    customerLocation.latitude,
-    customerLocation.longitude
-  );
-
-  const etaMinutes = Math.max(2, Math.round(distanceKm * 3.5));
-
   // Initialize Leaflet Map
   useEffect(() => {
     if (typeof window === 'undefined' || !mapContainerRef.current) return;
@@ -85,9 +76,11 @@ export default function LiveDeliveryMap({
         mapInstanceRef.current = null;
       }
 
-      // Initial center between driver and customer
-      const midLat = (currentDriverPos.lat + customerLocation.latitude) / 2;
-      const midLng = (currentDriverPos.lng + customerLocation.longitude) / 2;
+      // Initial center: between driver and customer if known, else between kitchen and customer
+      const anchorLat = currentDriverPos?.lat ?? kitchenLocation.latitude;
+      const anchorLng = currentDriverPos?.lng ?? kitchenLocation.longitude;
+      const midLat = (anchorLat + customerLocation.latitude) / 2;
+      const midLng = (anchorLng + customerLocation.longitude) / 2;
 
       const map = L.map(mapContainerRef.current, {
         center: [midLat, midLng],
@@ -153,72 +146,72 @@ export default function LiveDeliveryMap({
         .addTo(map)
         .bindPopup(`<strong>Drop-off: ${customerLocation.name || 'Customer'}</strong><br/>${customerLocation.address || 'Sagore, Pithampur'}`);
 
-      // 3. Driver Live Marker (Swiggy/Zomato Motorcycle with animated radar pulse)
-      const driverIcon = L.divIcon({
-        className: 'custom-driver-marker',
-        html: `
-          <div style="position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
-            <!-- Radar Ripple Ring -->
-            <div style="position: absolute; inset: -4px; border-radius: 9999px; background: rgba(56, 117, 74, 0.25); animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-            <!-- Marker Body -->
-            <div style="position: relative; background: #38754A; color: white; border: 2.5px solid white; border-radius: 9999px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(56, 117, 74, 0.45); transform: rotate(${currentDriverPos.heading}deg); transition: transform 0.4s ease;">
-              <span class="material-symbols-outlined" style="font-size: 22px;">two_wheeler</span>
+      // 3. Driver Live Marker — only add when real location is known
+      if (driverLocation) {
+        const driverIcon = L.divIcon({
+          className: 'custom-driver-marker',
+          html: `
+            <div style="position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
+              <!-- Radar Ripple Ring -->
+              <div style="position: absolute; inset: -4px; border-radius: 9999px; background: rgba(56, 117, 74, 0.25); animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+              <!-- Marker Body -->
+              <div style="position: relative; background: #38754A; color: white; border: 2.5px solid white; border-radius: 9999px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(56, 117, 74, 0.45); transform: rotate(${driverLocation.heading ?? 0}deg); transition: transform 0.4s ease;">
+                <span class="material-symbols-outlined" style="font-size: 22px;">two_wheeler</span>
+              </div>
             </div>
-          </div>
-        `,
-        iconSize: [44, 44],
-        iconAnchor: [22, 22],
-      });
+          `,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22],
+        });
 
-      driverMarkerRef.current = L.marker([currentDriverPos.lat, currentDriverPos.lng], {
-        icon: driverIcon,
-        zIndexOffset: 1000,
-      })
-        .addTo(map)
-        .bindPopup(`<strong>${riderName}</strong><br/>${riderVehicle} • Out for Delivery`);
-
-      // 4. Route Polyline connecting Kitchen -> Driver -> Destination
-      const routePoints: [number, number][] = [
-        [kitchenLocation.latitude, kitchenLocation.longitude],
-        [currentDriverPos.lat, currentDriverPos.lng],
-        [customerLocation.latitude, customerLocation.longitude],
-      ];
-
-      polylineRef.current = L.polyline(routePoints, {
-        color: '#38754A',
-        weight: 4.5,
-        opacity: 0.85,
-        dashArray: '8, 8',
-        lineCap: 'round',
-        lineJoin: 'round',
-      }).addTo(map);
-
-      // Asynchronously fetch accurate road directions from Ola Maps
-      const startLat = isRiderView && driverLocation?.latitude ? driverLocation.latitude : kitchenLocation.latitude;
-      const startLng = isRiderView && driverLocation?.longitude ? driverLocation.longitude : kitchenLocation.longitude;
-
-      api
-        .getDirections(
-          startLat,
-          startLng,
-          customerLocation.latitude,
-          customerLocation.longitude,
-        )
-        .then((directions) => {
-          if (!isMounted || !mapInstanceRef.current || !polylineRef.current) return;
-          if (directions && directions.coordinates && directions.coordinates.length > 1) {
-            polylineRef.current.setLatLngs(directions.coordinates);
-          }
+        driverMarkerRef.current = L.marker([driverLocation.latitude, driverLocation.longitude], {
+          icon: driverIcon,
+          zIndexOffset: 1000,
         })
-        .catch(() => {});
+          .addTo(map)
+          .bindPopup(`<strong>${riderName}</strong><br/>${riderVehicle || ''} • Out for Delivery`);
 
-      // Fit bounds with comfortable padding
-      const group = L.featureGroup([
-        driverMarkerRef.current,
-        customerMarkerRef.current,
-        kitchenMarkerRef.current,
-      ]);
-      map.fitBounds(group.getBounds().pad(0.2));
+        // 4. Route Polyline connecting Kitchen -> Driver -> Destination
+        const routePoints: [number, number][] = [
+          [kitchenLocation.latitude, kitchenLocation.longitude],
+          [driverLocation.latitude, driverLocation.longitude],
+          [customerLocation.latitude, customerLocation.longitude],
+        ];
+
+        polylineRef.current = L.polyline(routePoints, {
+          color: '#38754A',
+          weight: 4.5,
+          opacity: 0.85,
+          dashArray: '8, 8',
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+
+        // Asynchronously fetch accurate road directions from Ola Maps
+        const startLat = driverLocation.latitude;
+        const startLng = driverLocation.longitude;
+
+        api
+          .getDirections(
+            startLat,
+            startLng,
+            customerLocation.latitude,
+            customerLocation.longitude,
+          )
+          .then((directions) => {
+            if (!isMounted || !mapInstanceRef.current || !polylineRef.current) return;
+            if (directions && directions.coordinates && directions.coordinates.length > 1) {
+              polylineRef.current.setLatLngs(directions.coordinates);
+            }
+          })
+          .catch(() => {});
+      }
+
+      // Fit bounds: include driver if available, else just kitchen + customer
+      const markerGroup = driverMarkerRef.current
+        ? L.featureGroup([driverMarkerRef.current, customerMarkerRef.current, kitchenMarkerRef.current])
+        : L.featureGroup([customerMarkerRef.current, kitchenMarkerRef.current]);
+      map.fitBounds(markerGroup.getBounds().pad(0.2));
     });
 
 
@@ -235,15 +228,24 @@ export default function LiveDeliveryMap({
 
   // Update Driver Marker smoothly when driverLocation prop changes
   useEffect(() => {
-    if (!driverLocation || !mapInstanceRef.current || !driverMarkerRef.current) return;
+    if (!driverLocation || !mapInstanceRef.current) return;
 
     const targetLat = driverLocation.latitude;
     const targetLng = driverLocation.longitude;
     const heading = driverLocation.heading ?? 0;
 
-    // Smooth position update
     setCurrentDriverPos({ lat: targetLat, lng: targetLng, heading });
-    driverMarkerRef.current.setLatLng([targetLat, targetLng]);
+
+    if (driverMarkerRef.current) {
+      // Existing marker — just move it
+      driverMarkerRef.current.setLatLng([targetLat, targetLng]);
+    } else {
+      // First real location received — trigger map re-init so marker is added
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    }
 
     if (polylineRef.current) {
       polylineRef.current.setLatLngs([
@@ -254,9 +256,9 @@ export default function LiveDeliveryMap({
     }
   }, [driverLocation, customerLocation, kitchenLocation]);
 
-  // Recenter on Driver
+  // Recenter on Driver (only valid when driver position is known)
   const handleRecenterOnDriver = () => {
-    if (!mapInstanceRef.current) return;
+    if (!mapInstanceRef.current || !currentDriverPos) return;
     mapInstanceRef.current.panTo([currentDriverPos.lat, currentDriverPos.lng], {
       animate: true,
       duration: 0.8,
@@ -270,9 +272,11 @@ export default function LiveDeliveryMap({
       if (!mapInstanceRef.current) return;
       const points: [number, number][] = [
         [kitchenLocation.latitude, kitchenLocation.longitude],
-        [currentDriverPos.lat, currentDriverPos.lng],
         [customerLocation.latitude, customerLocation.longitude],
       ];
+      if (currentDriverPos) {
+        points.splice(1, 0, [currentDriverPos.lat, currentDriverPos.lng]);
+      }
       const bounds = L.latLngBounds(points);
       mapInstanceRef.current.fitBounds(bounds.pad(0.25));
     });
@@ -340,7 +344,7 @@ export default function LiveDeliveryMap({
         className="w-full relative z-0"
       />
 
-      {/* Floating Status & ETA Card (Swiggy/Zomato style) */}
+      {/* Floating Status & ETA Card */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 pointer-events-auto">
         <div className="px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse shrink-0" />
@@ -348,10 +352,16 @@ export default function LiveDeliveryMap({
             <span className="text-[11px] font-black text-[#292D26] leading-none">
               {status === 'DELIVERED'
                 ? 'Delivered to Customer'
-                : `Driver ~${distanceKm} km away`}
+                : currentDriverPos
+                  ? `Driver ~${getDistanceKm(currentDriverPos.lat, currentDriverPos.lng, customerLocation.latitude, customerLocation.longitude)} km away`
+                  : 'Awaiting rider assignment'}
             </span>
             <span className="text-[10px] text-[#77786F] font-semibold">
-              {status === 'DELIVERED' ? 'Order Complete' : `ETA ~${etaMinutes} mins • On the way`}
+              {status === 'DELIVERED'
+                ? 'Order Complete'
+                : currentDriverPos
+                  ? `ETA ~${Math.max(2, Math.round(getDistanceKm(currentDriverPos.lat, currentDriverPos.lng, customerLocation.latitude, customerLocation.longitude) * 3.5))} mins • On the way`
+                  : 'Rider will be assigned soon'}
             </span>
           </div>
         </div>

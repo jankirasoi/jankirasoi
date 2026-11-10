@@ -11,10 +11,11 @@ interface TrackingRoadMapProps {
 export default function TrackingRoadMap({
   status,
   className = '',
-  riderName = 'Lakhan',
+  riderName,
 }: TrackingRoadMapProps) {
   const isOutForDelivery = status === 'OUT_FOR_DELIVERY';
   const isReady = status === 'READY_FOR_PICKUP';
+  const hasRider = Boolean(riderName);
 
   return (
     <div
@@ -175,49 +176,51 @@ export default function TrackingRoadMap({
         <div className="w-4 h-1.5 bg-black/20 rounded-full blur-[1px] mt-1" />
       </div>
 
-      {/* ── Delivery Partner Rider (Lakhan on Bike with Radar Glow) ── */}
-      <div
-        className={`absolute z-20 flex flex-col items-center pointer-events-none transition-all duration-1000 ${
-          isOutForDelivery ? 'animate-pulse' : ''
-        }`}
-        style={{
-          right: isOutForDelivery ? '26%' : isReady ? '28%' : '24%',
-          top: isOutForDelivery ? '52%' : isReady ? '58%' : '62%',
-          transform: 'translate(50%, -50%)',
-        }}
-      >
-        {/* Pulsing Radar Wave on Rider */}
-        <div className="absolute -inset-3 rounded-full bg-emerald-500/25 animate-ping" />
-        <div className="absolute -inset-1.5 rounded-full bg-emerald-500/35" />
+      {/* ── Delivery Partner Rider (only shown when assigned) ── */}
+      {hasRider && (
+        <div
+          className={`absolute z-20 flex flex-col items-center pointer-events-none transition-all duration-1000 ${
+            isOutForDelivery ? 'animate-pulse' : ''
+          }`}
+          style={{
+            right: isOutForDelivery ? '26%' : isReady ? '28%' : '24%',
+            top: isOutForDelivery ? '52%' : isReady ? '58%' : '62%',
+            transform: 'translate(50%, -50%)',
+          }}
+        >
+          {/* Pulsing Radar Wave on Rider */}
+          <div className="absolute -inset-3 rounded-full bg-emerald-500/25 animate-ping" />
+          <div className="absolute -inset-1.5 rounded-full bg-emerald-500/35" />
 
-        {/* Rider Badge (Matching 2nd image: rider with green helmet, bag, motorcycle) */}
-        <div className="relative w-11 h-11 rounded-full bg-[#18181B] border-2 border-white shadow-xl flex items-center justify-center">
-          <svg viewBox="0 0 36 36" className="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Scooter / Bike Body */}
-            <path d="M9 25 C10 21, 14 20, 19 20 L23 20 L27 25" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
-            <circle cx="10" cy="25" r="3" fill="#3B82F6" stroke="#FFFFFF" strokeWidth="1.2" />
-            <circle cx="26" cy="25" r="3" fill="#3B82F6" stroke="#FFFFFF" strokeWidth="1.2" />
+          {/* Rider Badge (Matching 2nd image: rider with green helmet, bag, motorcycle) */}
+          <div className="relative w-11 h-11 rounded-full bg-[#18181B] border-2 border-white shadow-xl flex items-center justify-center">
+            <svg viewBox="0 0 36 36" className="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* Scooter / Bike Body */}
+              <path d="M9 25 C10 21, 14 20, 19 20 L23 20 L27 25" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="10" cy="25" r="3" fill="#3B82F6" stroke="#FFFFFF" strokeWidth="1.2" />
+              <circle cx="26" cy="25" r="3" fill="#3B82F6" stroke="#FFFFFF" strokeWidth="1.2" />
 
-            {/* Rider Body & Yellow Shirt */}
-            <path d="M14 17 L17 12 L20 17" stroke="#EAB308" strokeWidth="3" strokeLinecap="round" />
-            {/* Delivery Box (Green Blinkit style bag) */}
-            <rect x="10" y="12" width="5" height="6" rx="1" fill="#16A34A" />
+              {/* Rider Body & Yellow Shirt */}
+              <path d="M14 17 L17 12 L20 17" stroke="#EAB308" strokeWidth="3" strokeLinecap="round" />
+              {/* Delivery Box (Green Blinkit style bag) */}
+              <rect x="10" y="12" width="5" height="6" rx="1" fill="#16A34A" />
 
-            {/* Helmet (Green Safety Helmet) */}
-            <circle cx="18" cy="9" r="4" fill="#16A34A" />
-            {/* Visor */}
-            <path d="M19 8 L22 9.5 L19 11" stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>
+              {/* Helmet (Green Safety Helmet) */}
+              <circle cx="18" cy="9" r="4" fill="#16A34A" />
+              {/* Visor */}
+              <path d="M19 8 L22 9.5 L19 11" stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          </div>
+
+          {/* Rider Name Tag */}
+          <div className="mt-1 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-full border border-slate-200 shadow-xs flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+            <span className="text-[10px] font-extrabold text-slate-800 tracking-tight whitespace-nowrap">
+              {riderName} &bull; 🛵
+            </span>
+          </div>
         </div>
-
-        {/* Rider Name Tag */}
-        <div className="mt-1 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-full border border-slate-200 shadow-xs flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-          <span className="text-[10px] font-extrabold text-slate-800 tracking-tight whitespace-nowrap">
-            {riderName} &bull; 🛵
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* ── Google Watermark (Matching 2nd Image Reference) ── */}
       <div className="absolute bottom-2.5 left-3.5 z-10 flex items-center gap-1 opacity-80 pointer-events-none">
@@ -235,7 +238,7 @@ export default function TrackingRoadMap({
       <div className="absolute top-2.5 right-3 z-10">
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-md border border-slate-200 shadow-2xs text-[11px] font-bold text-slate-800">
           <span className="w-2 h-2 rounded-full bg-[#15803d] animate-pulse" />
-          <span>{isOutForDelivery ? '1.7 km away' : 'Kitchen Dispatching'}</span>
+          <span>{isOutForDelivery && hasRider ? '1.7 km away' : 'Kitchen Dispatching'}</span>
         </div>
       </div>
     </div>

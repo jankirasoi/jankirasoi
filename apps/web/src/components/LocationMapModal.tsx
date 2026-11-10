@@ -120,9 +120,6 @@ export default function LocationMapModal({
   const searchTimerRef = useRef<any>(null);
   const reverseGeocodeTimerRef = useRef<any>(null);
 
-  const searchTimerRef = useRef<any>(null);
-  const reverseGeocodeTimerRef = useRef<any>(null);
-
   // Load saved addresses from localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
