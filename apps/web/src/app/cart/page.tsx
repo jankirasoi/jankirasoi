@@ -44,7 +44,7 @@ export default function CartPage() {
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [showCookingInput, setShowCookingInput] = useState(false);
   const [pinStatusMsg, setPinStatusMsg] = useState<{ text: string; isError: boolean } | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'RAZORPAY'>('COD');
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'PHONEPE' | 'RAZORPAY'>('PHONEPE');
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [riderTab, setRiderTab] = useState<'DELIVERY_TYPE' | 'TIP' | 'INSTRUCTIONS'>('INSTRUCTIONS');
@@ -565,6 +565,13 @@ export default function CartPage() {
           pincode: pincode.trim(),
         })
         .catch(() => {});
+
+      // If PhonePe payment session was created, redirect directly to PhonePe gateway
+      if (orderResult.phonepeRedirectUrl) {
+        showToast('Opening PhonePe secure payment gateway...');
+        window.location.href = orderResult.phonepeRedirectUrl;
+        return;
+      }
 
       showToast('Order confirmed! Opening live tracking...');
       router.push(`/track?token=${orderResult.trackingToken}`);
@@ -1240,7 +1247,7 @@ export default function CartPage() {
                   <div>
                     <p className="text-[10px] uppercase font-extrabold tracking-wider text-[#77786F]">Payment Method</p>
                     <p className="text-xs font-extrabold text-[#292D26]">
-                      {paymentMethod === 'COD' ? 'Cash / UPI on Delivery' : 'Online UPI / Cards'}
+                      {paymentMethod === 'COD' ? 'Cash / UPI on Delivery' : 'PhonePe / UPI / Cards'}
                     </p>
                   </div>
                 </div>
@@ -1307,10 +1314,10 @@ export default function CartPage() {
                 </span>
               </div>
               <div className="flex items-center gap-1 font-extrabold text-xs text-[#292D26] truncate mt-0.5">
-                <span>{paymentMethod === 'COD' ? 'Cash on Delivery' : 'Online UPI / Cards'}</span>
+                <span>{paymentMethod === 'COD' ? 'Cash on Delivery' : 'PhonePe / UPI / Cards'}</span>
               </div>
               <span className="text-[10px] text-[#77786F] truncate leading-tight mt-0.5">
-                {paymentMethod === 'COD' ? 'Pay cash or scan QR on arrival' : 'PhonePe, GPay, Paytm, Cards'}
+                {paymentMethod === 'COD' ? 'Pay cash or scan QR on arrival' : 'PhonePe, GPay, Paytm, Cards & NetBanking'}
               </span>
             </div>
           </div>
@@ -1525,25 +1532,25 @@ export default function CartPage() {
 
             {/* Payment Options */}
             <div className="p-4 flex flex-col gap-2.5">
-              {/* Option 1: Online UPI / PhonePe / GPay */}
+              {/* Option 1: PhonePe / Online UPI / Cards */}
               <div
                 onClick={() => {
-                  setPaymentMethod('RAZORPAY');
+                  setPaymentMethod('PHONEPE');
                   setIsPaymentModalOpen(false);
                 }}
                 className={`p-3.5 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                  paymentMethod === 'RAZORPAY'
+                  paymentMethod === 'PHONEPE' || paymentMethod === 'RAZORPAY'
                     ? 'border-[#38754A] bg-[#EAF4ED]/40 shadow-xs'
                     : 'border-[#EEE7DC] hover:border-slate-300 bg-white'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-[#EAF4ED] text-[#38754A] flex items-center justify-center font-bold text-lg shrink-0 border border-[#CBE8D3]">
-                    <span className="material-symbols-outlined text-[22px]">qr_code_2</span>
+                  <div className="w-10 h-10 rounded-xl bg-[#5f259f]/10 text-[#5f259f] flex items-center justify-center font-bold text-lg shrink-0 border border-[#5f259f]/20">
+                    <span className="material-symbols-outlined text-[22px]">account_balance_wallet</span>
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-sm text-[#292D26]">Online UPI / Cards</span>
+                      <span className="font-extrabold text-sm text-[#292D26]">PhonePe / UPI / Cards</span>
                       <span className="px-2 py-0.5 rounded-full bg-[#EAF4ED] text-[#285C38] border border-[#CBE8D3] font-extrabold text-[10px]">
                         RECOMMENDED
                       </span>
@@ -1554,9 +1561,9 @@ export default function CartPage() {
                   </div>
                 </div>
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ml-2 ${
-                  paymentMethod === 'RAZORPAY' ? 'border-[#38754A] bg-[#38754A]' : 'border-slate-300'
+                  paymentMethod === 'PHONEPE' || paymentMethod === 'RAZORPAY' ? 'border-[#38754A] bg-[#38754A]' : 'border-slate-300'
                 }`}>
-                  {paymentMethod === 'RAZORPAY' && <span className="w-2 h-2 rounded-full bg-white"></span>}
+                  {(paymentMethod === 'PHONEPE' || paymentMethod === 'RAZORPAY') && <span className="w-2 h-2 rounded-full bg-white"></span>}
                 </div>
               </div>
 

@@ -10,6 +10,7 @@ import { OutboxService } from '../outbox/outbox.service';
 import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'crypto';
 import { VerifyPaymentDto, RefundOrderDto } from './dto/payments.dto';
+import { PhonePeService } from './phonepe.service';
 const Razorpay = require('razorpay');
 
 @Injectable()
@@ -22,6 +23,7 @@ export class PaymentsService {
     private readonly auditService: AuditService,
     private readonly outboxService: OutboxService,
     private readonly configService: ConfigService,
+    private readonly phonePeService: PhonePeService,
   ) {
     const key_id = this.configService.get<string>('RAZORPAY_KEY_ID');
     const key_secret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -181,8 +183,143 @@ export class PaymentsService {
         }
       }
     }
+    return { status: 'ok' };
+  }
 
-    return { status: 'processed' };
+  async handlePhonePeWebhookPayload(decoded: any) {
+    const data = decoded?.data;
+    const merchantTransactionId = data?.merchantTransactionId;
+    const phonepeTransactionId = data?.transactionId;
+    const amount = data?.amount;
+    const code = decoded?.code;
+    const state = data?.state;
+
+    if (!merchantTransactionId) {
+      throw new BadRequestException('Missing merchantTransactionId in webhook payload');
+    }
+
+    // Event deduplication via providerEventId
+    const eventId = `phonepe_${phonepeTransactionId || merchantTransactionId}_${Date.now()}`;
+    const existing = await this.prisma.paymentEvent.findFirst({
+      where: { providerEventId: { startsWith: `phonepe_${phonepeTransactionId || merchantTransactionId}` } },
+    });
+    if (existing) {
+      this.logger.log(`Ignoring duplicate PhonePe webhook event for ${merchantTransactionId}`);
+      return { status: 'already_processed', success: true };
+    }
+
+    await this.prisma.paymentEvent.create({
+      data: {
+        providerEventId: eventId,
+        eventType: code || 'PHONEPE_WEBHOOK',
+        payload: decoded,
+      },
+    }).catch(() => {});
+
+    // Lookup payment attempt
+    const paymentAttempt = await this.prisma.paymentAttempt.findFirst({
+      where: { providerOrderId: merchantTransactionId },
+      include: { order: true },
+    });
+
+    let order = paymentAttempt?.order;
+    if (!order) {
+      const baseOrderNumber = merchantTransactionId.split('-P')[0];
+      order = await this.prisma.order.findFirst({
+        where: { orderNumber: baseOrderNumber },
+      });
+    }
+
+    if (!order) {
+      this.logger.error(`Order not found for PhonePe transaction ${merchantTransactionId}`);
+      throw new NotFoundException(`Order not found for transaction ${merchantTransactionId}`);
+    }
+
+    // Idempotency: if already CAPTURED, return 200 immediately
+    if (order.paymentStatus === 'CAPTURED') {
+      return { status: 'already_captured', success: true };
+    }
+
+    // Amount verification guard against tampering
+    if (typeof amount === 'number' && amount !== order.totalAmountPaise) {
+      this.logger.error(`Amount tampering detected for ${order.orderNumber}: expected ${order.totalAmountPaise}, got ${amount}`);
+      throw new BadRequestException('Amount tampering detected');
+    }
+
+    const isSuccess = code === 'PAYMENT_SUCCESS' || state === 'COMPLETED';
+
+    if (isSuccess) {
+      return this.prisma.$transaction(async (tx) => {
+        if (paymentAttempt) {
+          await tx.paymentAttempt.update({
+            where: { id: paymentAttempt.id },
+            data: {
+              status: 'CAPTURED',
+              providerPaymentId: phonepeTransactionId,
+              signatureVerified: true,
+            },
+          });
+        }
+
+        const updatedOrder = await tx.order.update({
+          where: { id: order!.id },
+          data: {
+            status: 'PLACED',
+            paymentStatus: 'CAPTURED',
+          },
+        });
+
+        await tx.orderStatusEvent.create({
+          data: {
+            orderId: order!.id,
+            fromStatus: order!.status,
+            toStatus: 'PLACED',
+            actorType: 'SYSTEM',
+            reason: `Payment verified via PhonePe [${phonepeTransactionId || merchantTransactionId}]`,
+          },
+        });
+
+        await this.outboxService.enqueue(
+          'PAYMENT_CONFIRMED',
+          {
+            orderId: order!.id,
+            orderNumber: order!.orderNumber,
+            phone: order!.customerPhone,
+            amountPaise: order!.totalAmountPaise,
+          },
+          tx,
+        );
+
+        return { success: true, status: 'confirmed', orderNumber: updatedOrder.orderNumber };
+      });
+    } else {
+      if (paymentAttempt) {
+        await this.prisma.paymentAttempt.update({
+          where: { id: paymentAttempt.id },
+          data: {
+            status: 'FAILED',
+            providerPaymentId: phonepeTransactionId,
+          },
+        }).catch(() => {});
+      }
+
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: { paymentStatus: 'FAILED' },
+      }).catch(() => {});
+
+      return { success: false, status: 'failed', code };
+    }
+  }
+
+  async reconcilePhonePeOrder(merchantTransactionId: string) {
+    const statusRes = await this.phonePeService.checkTransactionStatus(merchantTransactionId);
+    if (!statusRes) return null;
+
+    if (statusRes.code === 'PAYMENT_SUCCESS' || statusRes.data?.state === 'COMPLETED') {
+      return this.handlePhonePeWebhookPayload(statusRes);
+    }
+    return statusRes;
   }
 
   async processRefund(orderId: string, dto: RefundOrderDto, adminId?: string) {
@@ -193,12 +330,33 @@ export class PaymentsService {
     if (!order) throw new NotFoundException('Order not found');
 
     const paymentAttempt = order.paymentAttempts.find((p) => p.status === 'CAPTURED');
-    if (!paymentAttempt && order.paymentMethod === 'RAZORPAY') {
+    if (!paymentAttempt && (order.paymentMethod === 'RAZORPAY' || order.paymentMethod === 'PHONEPE')) {
       throw new BadRequestException('Cannot refund order without captured online payment');
     }
 
-    let rzpRefundId: string;
-    if (order.paymentMethod === 'RAZORPAY') {
+    let providerRefundId: string;
+    if (order.paymentMethod === 'PHONEPE') {
+      if (!paymentAttempt?.providerPaymentId) {
+        throw new BadRequestException('Cannot process PhonePe refund: missing captured payment ID');
+      }
+      try {
+        const refundTxnId = `REF_${order.orderNumber}_${Date.now()}`;
+        const phonePeRefund = await this.phonePeService.initiateRefund({
+          refundTransactionId: refundTxnId,
+          originalTransactionId: paymentAttempt.providerPaymentId,
+          amountPaise: dto.amountPaise,
+          reason: dto.reason,
+        });
+
+        if (!phonePeRefund.success && phonePeRefund.code !== 'PAYMENT_PENDING') {
+          throw new Error(phonePeRefund.message || 'PhonePe refund rejected');
+        }
+        providerRefundId = phonePeRefund.data?.transactionId || refundTxnId;
+      } catch (err) {
+        this.logger.error(`PhonePe refund failed: ${(err as Error).message}`);
+        throw new BadRequestException(`PhonePe refund failed: ${(err as Error).message}`);
+      }
+    } else if (order.paymentMethod === 'RAZORPAY') {
       if (!this.razorpayClient || !paymentAttempt?.providerPaymentId) {
         throw new BadRequestException('Cannot process Razorpay refund: gateway not initialized or missing payment ID');
       }
@@ -207,20 +365,20 @@ export class PaymentsService {
           amount: dto.amountPaise,
           notes: { reason: dto.reason },
         });
-        rzpRefundId = rzpRefund.id;
+        providerRefundId = rzpRefund.id;
       } catch (err) {
         this.logger.error(`Razorpay refund failed: ${(err as Error).message}`);
         throw new BadRequestException(`Provider refund failed: ${(err as Error).message}`);
       }
     } else {
-      rzpRefundId = 'COD_REFUND_' + Date.now();
+      providerRefundId = 'COD_REFUND_' + Date.now();
     }
 
     return this.prisma.$transaction(async (tx) => {
       const refund = await tx.refund.create({
         data: {
           orderId,
-          providerRefundId: rzpRefundId,
+          providerRefundId,
           amountPaise: dto.amountPaise,
           reason: dto.reason,
           status: 'COMPLETED',
@@ -242,7 +400,7 @@ export class PaymentsService {
         action: 'ORDER_REFUNDED',
         entity: 'Order',
         entityId: orderId,
-        newValue: { amountPaise: dto.amountPaise, rzpRefundId },
+        newValue: { amountPaise: dto.amountPaise, providerRefundId },
         reason: dto.reason,
       });
 

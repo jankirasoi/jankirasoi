@@ -234,6 +234,7 @@ enum OrderStatus {
 }
 
 enum PaymentMethod {
+  PHONEPE
   RAZORPAY
   COD
 }

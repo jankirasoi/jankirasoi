@@ -11,6 +11,7 @@ import { randomBytes, randomUUID, createHmac } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { OrdersEventsService } from '../events/orders-events.service';
 import { DeliveryZonesService } from '../delivery-zones/delivery-zones.service';
+import { PhonePeService } from '../payments/phonepe.service';
 const Razorpay = require('razorpay');
 
 interface CachedQuote {
@@ -56,6 +57,7 @@ export class CheckoutService {
     private readonly configService: ConfigService,
     private readonly ordersEventsService: OrdersEventsService,
     private readonly deliveryZonesService: DeliveryZonesService,
+    private readonly phonePeService: PhonePeService,
   ) {
     const key_id = this.configService.get<string>('RAZORPAY_KEY_ID');
     const key_secret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -488,8 +490,36 @@ export class CheckoutService {
     this.slotCache.delete(slotCacheKey);
 
     let razorpayOrderId: string | undefined = undefined;
+    let phonepeRedirectUrl: string | undefined = undefined;
 
-    if (dto.paymentMethod === 'RAZORPAY') {
+    if (dto.paymentMethod === 'PHONEPE') {
+      try {
+        const phonePeRes = await this.phonePeService.initiatePayment({
+          orderNumber,
+          attemptNumber: 1,
+          amountPaise: cached.totalAmountPaise,
+          customerPhone: dto.customerPhone,
+          trackingToken,
+        });
+
+        phonepeRedirectUrl = phonePeRes.redirectUrl;
+
+        await this.prisma.paymentAttempt.create({
+          data: {
+            orderId,
+            provider: 'PHONEPE',
+            providerOrderId: phonePeRes.merchantTransactionId,
+            amountPaise: cached.totalAmountPaise,
+            currency: 'INR',
+            status: 'PENDING',
+            signatureVerified: false,
+          },
+        });
+      } catch (err) {
+        this.logger.error(`PhonePe payment initiation failed: ${(err as Error).message}`);
+        throw new BadRequestException(`PhonePe payment error: ${(err as Error).message}`);
+      }
+    } else if (dto.paymentMethod === 'RAZORPAY') {
       if (!this.razorpayClient) {
         throw new BadRequestException('Razorpay payment gateway is not initialized on the server.');
       }
@@ -527,10 +557,12 @@ export class CheckoutService {
       status: orderStatus,
       trackingToken,
       trackingUrl: `https://jankirasoi.in/orders/track/${trackingToken}`,
+      phonepeRedirectUrl,
       payment: {
         method: dto.paymentMethod,
         amountPaise: cached.totalAmountPaise,
         currency: 'INR',
+        phonepeRedirectUrl,
         razorpayOrderId,
         razorpayKeyId: this.configService.get<string>('RAZORPAY_KEY_ID') || undefined,
       },

@@ -90,9 +90,9 @@ export class PlaceOrderDto {
   @IsNotEmpty()
   quoteToken: string;
 
-  @ApiProperty({ enum: ['RAZORPAY', 'COD'], example: 'RAZORPAY' })
-  @IsEnum(['RAZORPAY', 'COD'])
-  paymentMethod: 'RAZORPAY' | 'COD';
+  @ApiProperty({ enum: ['PHONEPE', 'RAZORPAY', 'COD'], example: 'PHONEPE' })
+  @IsEnum(['PHONEPE', 'RAZORPAY', 'COD'])
+  paymentMethod: 'PHONEPE' | 'RAZORPAY' | 'COD';
 
   @ApiProperty({ example: 'Rohan Sharma' })
   @IsString()

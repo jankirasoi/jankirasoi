@@ -146,7 +146,7 @@ export interface QuoteResponse {
 
 export interface PlaceOrderPayload {
   quoteToken: string;
-  paymentMethod: 'COD' | 'RAZORPAY';
+  paymentMethod: 'COD' | 'RAZORPAY' | 'PHONEPE';
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
@@ -168,6 +168,7 @@ export interface PlaceOrderResponse {
   status: string;
   totalAmountPaise: number;
   paymentMethod: string;
+  phonepeRedirectUrl?: string;
   razorpayOrderId?: string;
   razorpayKeyId?: string;
   currency: string;
