@@ -85,7 +85,7 @@ export default function ActiveOrderBanner({ className = '' }: ActiveOrderBannerP
     partnerMessage = 'Homestyle rotis & vegetables being prepared fresh 🔥';
   }
 
-  const riderDisplayName = order.riderName || 'Lakhan';
+  const riderDisplayName = order.riderName || null;
   const firstItem = order.items?.[0]?.name || 'Homestyle Pure Veg Meal';
   const totalItemCount = order.items?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 1;
   const moreItemsCount = totalItemCount - 1;
@@ -144,10 +144,18 @@ export default function ActiveOrderBanner({ className = '' }: ActiveOrderBannerP
 
           {/* Delivery Partner Lakhan Card Preview (Matching Image 2) */}
           <div className="bg-[#F8FAF8] rounded-xl p-2.5 border border-[#15803d]/15 flex items-center gap-3 mb-3">
-            <LakhanAvatar size={44} />
+            {riderDisplayName ? (
+              <LakhanAvatar size={44} />
+            ) : (
+              <div className="w-11 h-11 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[22px] text-emerald-700">moped</span>
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <div className="text-xs font-extrabold text-slate-900 truncate">
-                I&apos;m {riderDisplayName}, your delivery partner
+                {riderDisplayName
+                  ? `I'm ${riderDisplayName}, your delivery partner`
+                  : 'Your delivery partner is on the way'}
               </div>
               {/* Light Green Chat Bubble */}
               <div className="inline-block mt-1 bg-[#DCFCE7]/70 border border-[#86EFAC]/40 text-[#166534] text-[11px] font-medium px-2 py-0.5 rounded-lg truncate max-w-full">

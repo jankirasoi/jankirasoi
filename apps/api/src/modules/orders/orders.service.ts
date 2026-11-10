@@ -137,8 +137,9 @@ export class OrdersService {
       rawLng >= 75.0 &&
       rawLng <= 76.5;
 
-    const destLat = hasValidLocalCoords ? rawLat : 22.6312;
-    const destLng = hasValidLocalCoords ? rawLng : 75.5715;
+    const customerCoordinates = hasValidLocalCoords
+      ? { latitude: rawLat, longitude: rawLng }
+      : null;
 
     // Attach assigned rider and live in-memory telemetry
     const assigned = (order as any).riderAssignments?.[0]?.rider;
@@ -180,7 +181,7 @@ export class OrdersService {
       deliveryOtp,
       otpExpiresAt,
       rider: riderData,
-      coordinates: { latitude: destLat, longitude: destLng },
+      coordinates: customerCoordinates,
       kitchenCoordinates: {
         latitude: 22.6288,
         longitude: 75.5684,

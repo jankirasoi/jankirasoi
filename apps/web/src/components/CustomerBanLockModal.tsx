@@ -322,14 +322,14 @@ export default function CustomerBanLockModal() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <a
-                    href="tel:+919876543210"
+                    href="tel:+919755554774"
                     className="py-2 px-2.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-gray-800 font-semibold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
                   >
                     <span className="material-symbols-outlined text-[#38754A] text-[16px]">call</span>
                     <span>Call Kitchen</span>
                   </a>
                   <a
-                    href={`https://wa.me/919876543210?text=${encodeURIComponent(
+                    href={`https://wa.me/919755554774?text=${encodeURIComponent(
                       `Hello Janki Rasoi Support, mera account (+91 ${banDetails.phone}) restricted hai. Help chahiye.`
                     )}`}
                     target="_blank"

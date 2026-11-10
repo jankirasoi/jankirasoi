@@ -171,7 +171,7 @@ export class AuthService {
       // Prevent banned customer accounts from logging in
       if (!user.isActive) {
         throw new ForbiddenException(
-          'Aapka account restricted/blocked hai. Unblock karwane ke liye Janki Rasoi kitchen support (+91 9812345678) par sampark karein.'
+          'Aapka account restricted/blocked hai. Unblock karwane ke liye Janki Rasoi kitchen support (+91 9755554774) par sampark karein.'
         );
       }
       // Prevent customer login from hijacking/overwriting Admin, Staff, or Rider accounts

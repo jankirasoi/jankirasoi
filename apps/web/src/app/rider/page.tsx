@@ -17,8 +17,8 @@ export default function RiderPage() {
   // Rider Auth State
   const [riderUser, setRiderUser] = useState<UserProfile | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
-  const [loginPhone, setLoginPhone] = useState('987654321');
-  const [loginPassword, setLoginPassword] = useState('200720');
+  const [loginPhone, setLoginPhone] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isTogglingDuty, setIsTogglingDuty] = useState(false);
@@ -1405,19 +1405,13 @@ export default function RiderPage() {
                 <div className="w-full shrink-0">
                   <LiveDeliveryMap
                     driverLocation={
-                      riderGps &&
-                      calculateDistanceKm(
-                        riderGps.lat,
-                        riderGps.lng,
-                        SAGORE_KITCHEN_COORDS.lat,
-                        SAGORE_KITCHEN_COORDS.lng
-                      ) <= 15
+                      riderGps
                         ? { latitude: riderGps.lat, longitude: riderGps.lng }
-                        : { latitude: SAGORE_KITCHEN_COORDS.lat, longitude: SAGORE_KITCHEN_COORDS.lng }
+                        : null
                     }
                     customerLocation={{
-                      latitude: activeMapDelivery.coordinates?.latitude || 22.6312,
-                      longitude: activeMapDelivery.coordinates?.longitude || 75.5715,
+                      latitude: activeMapDelivery.coordinates?.latitude || SAGORE_KITCHEN_COORDS.lat,
+                      longitude: activeMapDelivery.coordinates?.longitude || SAGORE_KITCHEN_COORDS.lng,
                       address: activeMapDelivery.deliveryAddress,
                       name: activeMapDelivery.customerName,
                     }}
@@ -1429,7 +1423,7 @@ export default function RiderPage() {
                     orderNumber={activeMapDelivery.orderNumber}
                     status={activeMapDelivery.status}
                     riderName={riderUser?.name || 'You'}
-                    riderVehicle={riderUser?.riderProfile?.vehicleNumber || 'MP-09-JR-2026'}
+                    riderVehicle={riderUser?.riderProfile?.vehicleNumber || undefined}
                     height="280px"
                     isRiderView={true}
                     onLocationUpdate={(loc) => {

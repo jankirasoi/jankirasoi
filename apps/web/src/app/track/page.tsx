@@ -10,10 +10,9 @@ import React, {
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { api, TrackOrderResponse, CatalogResponse, DEFAULT_FOOD_IMAGE } from '../../lib/api';
+import { api, TrackOrderResponse } from '../../lib/api';
 import { getActiveTrackingIdentifier, clearActiveTrackingIdentifier } from '../../lib/orderStorage';
 import LakhanAvatar from '../../components/LakhanAvatar';
-import TrackingRoadMap from '../../components/TrackingRoadMap';
 
 const LiveDeliveryMap = dynamic(() => import('../../components/LiveDeliveryMap'), { ssr: false });
 
@@ -189,7 +188,7 @@ function PartnerCard({
             </svg>
           </span>
           <span className="truncate">
-            Your Janki Rasoi kitchen is 1.7 km away. Learn about delivery partner safety
+            Freshly prepared at Janki Rasoi kitchen • Handled with utmost safety
           </span>
         </div>
         <svg className="w-4 h-4 text-slate-400 shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -226,10 +225,10 @@ function DeliveryDetailsCard({ order }: { order: TrackOrderResponse }) {
       ]
         .filter(Boolean)
         .join(', ')
-    : '333 shyam nagar main ddu sukhliya indore Shyam Nagar, DDU Nagar, Sukhliya, Indore';
+    : 'Address not available';
 
   const customerName = order.customerName || 'Customer';
-  const customerPhone = order.maskedPhone || '77720XXXXX';
+  const customerPhone = order.maskedPhone || '—';
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-4 flex flex-col gap-4">
@@ -430,8 +429,39 @@ function MainTrackingView({
 
       {/* ── Scrollable Body Area ── */}
       <div className="flex-1 w-full max-w-md mx-auto px-3.5 py-3 flex flex-col gap-3.5 pb-24">
-        {/* 1. Street Map with Live Moving Rider & Blue Route */}
-        <TrackingRoadMap status={order.status} riderName={order.riderName ?? undefined} />
+        {/* 1. Real-time Interactive Route & Live Driver Map */}
+        <div className="w-full shrink-0">
+          <LiveDeliveryMap
+            driverLocation={
+              order.status === 'OUT_FOR_DELIVERY' && order.rider?.location
+                ? {
+                    latitude: order.rider.location.latitude,
+                    longitude: order.rider.location.longitude,
+                    heading: order.rider.location.heading,
+                  }
+                : null
+            }
+            customerLocation={{
+              latitude: order.coordinates?.latitude || 22.6288,
+              longitude: order.coordinates?.longitude || 75.5684,
+              address: [order.deliveryAddress?.flat, order.deliveryAddress?.street, order.deliveryAddress?.pincode].filter(Boolean).join(', '),
+              name: order.customerName,
+            }}
+            kitchenLocation={
+              order.kitchenCoordinates || {
+                latitude: 22.6288,
+                longitude: 75.5684,
+                name: 'Janki Rasoi Cloud Kitchen',
+              }
+            }
+            orderNumber={order.orderNumber}
+            status={order.status}
+            riderName={order.riderName || undefined}
+            riderVehicle={order.rider?.vehicleNumber || undefined}
+            height="260px"
+            isRiderView={false}
+          />
+        </div>
 
         {/* 2. Delivery Partner Card – only shown when a real rider is assigned */}
         {order.riderName && (
@@ -455,7 +485,7 @@ function MainTrackingView({
             <span>Share Order</span>
           </a>
           <a
-            href="https://wa.me/919812345678?text=Hi%20Janki%20Rasoi%2C%20I%20need%20help%20with%20my%20order."
+            href="https://wa.me/919755554774?text=Hi%20Janki%20Rasoi%2C%20I%20need%20help%20with%20my%20order."
             target="_blank"
             rel="noopener noreferrer"
             className="py-2.5 px-3 rounded-xl bg-white text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-200 hover:bg-slate-50 transition-colors shadow-2xs"

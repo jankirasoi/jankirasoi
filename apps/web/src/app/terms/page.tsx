@@ -83,8 +83,8 @@ export default function TermsPage() {
             </p>
             <div className="p-3.5 bg-[#FFF9F0] rounded-xl border border-[#EEE7DC] flex flex-col gap-1 text-xs">
               <span className="font-bold text-[#292D26]">Janki Rasoi Operations</span>
-              <span className="text-[#77786F]">Phone: <a href="tel:+919876543210" className="text-[#38754A] font-semibold">+91 98765 43210</a></span>
-              <span className="text-[#77786F]">WhatsApp: <a href="https://wa.me/919876543210" target="_blank" rel="noreferrer" className="text-[#38754A] font-semibold">+91 98765 43210</a></span>
+              <span className="text-[#77786F]">Phone: <a href="tel:+919755554774" className="text-[#38754A] font-semibold">+91 97555 54774</a></span>
+              <span className="text-[#77786F]">WhatsApp: <a href="https://wa.me/919755554774" target="_blank" rel="noreferrer" className="text-[#38754A] font-semibold">+91 97555 54774</a></span>
               <span className="text-[#77786F]">Email: <a href="mailto:care@jankirasoi.com" className="text-[#38754A] font-semibold">care@jankirasoi.com</a></span>
             </div>
           </section>

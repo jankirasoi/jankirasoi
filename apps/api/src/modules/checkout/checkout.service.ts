@@ -371,7 +371,7 @@ export class CheckoutService {
       });
       if (customerUser && customerUser.isActive === false) {
         throw new ForbiddenException(
-          'Aapka mobile number / account past unfulfilled ya fake order ki wajah se blocked hai. Order place karne ya unblock karwane ke liye Janki Rasoi kitchen support (+91 9812345678) se sampark karein.'
+          'Aapka mobile number / account past unfulfilled ya fake order ki wajah se blocked hai. Order place karne ya unblock karwane ke liye Janki Rasoi kitchen support (+91 9755554774) se sampark karein.'
         );
       }
     }

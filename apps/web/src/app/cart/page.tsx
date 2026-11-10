@@ -36,8 +36,8 @@ export default function CartPage() {
   const [street, setStreet] = useState('');
   const [landmark, setLandmark] = useState('');
   const [pincode, setPincode] = useState('454774');
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>({ lat: 22.6288, lng: 75.5684 });
-  const [detectedCity, setDetectedCity] = useState<string | null>('Sagore, Pithampur');
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [detectedCity, setDetectedCity] = useState<string | null>(null);
   const [checkingPin, setCheckingPin] = useState(false);
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [isCutleryNeeded, setIsCutleryNeeded] = useState(false);
@@ -434,6 +434,8 @@ export default function CartPage() {
           street: street.trim(),
           landmark: landmark.trim() || undefined,
           pincode: pincode.trim(),
+          latitude: coords?.lat,
+          longitude: coords?.lng,
         },
         deliveryNotes: compiledNotes || undefined,
       };
@@ -1719,6 +1721,7 @@ export default function CartPage() {
           setStreet(loc.street);
           setLandmark(loc.landmark);
           setPincode(loc.pincode);
+          setCoords({ lat: loc.lat, lng: loc.lng });
           setDetectedCity(loc.city);
           setIsMapModalOpen(false);
           showToast(`✓ Location updated: ${loc.street}, ${loc.city} (${loc.pincode})`);

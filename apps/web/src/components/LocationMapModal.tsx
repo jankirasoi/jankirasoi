@@ -107,12 +107,12 @@ export default function LocationMapModal({
   const [lat, setLat] = useState(22.6288);
   const [lng, setLng] = useState(75.5684);
   const [flat, setFlat] = useState(initialFlat || '');
-  const [street, setStreet] = useState(initialStreet || 'Main Market Road, Sagore');
-  const [areaTitle, setAreaTitle] = useState('Sagore Main Market');
-  const [landmark, setLandmark] = useState(initialLandmark || 'Near Sagore Police Station');
+  const [street, setStreet] = useState(initialStreet || '');
+  const [areaTitle, setAreaTitle] = useState(initialStreet ? initialStreet.split(',')[0] : 'Choose Delivery Location');
+  const [landmark, setLandmark] = useState(initialLandmark || '');
   const [pincode, setPincode] = useState(initialPincode || '454774');
-  const [city, setCity] = useState('Sagore, Pithampur');
-  const [displayAddress, setDisplayAddress] = useState('Sagore Main Market, Pithampur, Dhar, Madhya Pradesh 454774, India');
+  const [city, setCity] = useState('');
+  const [displayAddress, setDisplayAddress] = useState(initialStreet || '');
   const [isGpsLoading, setIsGpsLoading] = useState(false);
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   const [accuracyMode, setAccuracyMode] = useState<'precise' | 'approximate'>('precise');

@@ -137,7 +137,7 @@ export default function PrivacyPolicyPage() {
             <div className="p-3.5 bg-[#FFF9F0] rounded-xl border border-[#EEE7DC] flex flex-col gap-1 text-xs">
               <span className="font-bold text-[#292D26]">Janki Rasoi Legal &amp; Customer Grievance Desk</span>
               <span className="text-[#77786F]">Sagore Main Road, Pithampur / Betma, Madhya Pradesh — 454774</span>
-              <span className="text-[#77786F]">Phone: <a href="tel:+919876543210" className="text-[#38754A] font-semibold">+91 98765 43210</a></span>
+              <span className="text-[#77786F]">Phone: <a href="tel:+919755554774" className="text-[#38754A] font-semibold">+91 97555 54774</a></span>
               <span className="text-[#77786F]">Email: <a href="mailto:care@jankirasoi.in" className="text-[#38754A] font-semibold">care@jankirasoi.in</a></span>
             </div>
           </section>

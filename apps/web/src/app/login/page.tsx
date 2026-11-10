@@ -355,24 +355,7 @@ function LoginContent() {
               </button>
             </form>
 
-            {/* Quick Demo Pre-fill for convenience */}
-            <div className="pt-2 text-center border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => {
-                  setPhone('9876543210');
-                  setName('Rajesh Sharma');
-                  setFlat('Flat 204, Om Shanti Enclave');
-                  setStreet('Sagore Kuti, Sector 1');
-                  setLandmark('Near Hanuman Mandir');
-                  setPincode('454774');
-                }}
-                className="text-xs text-[#38754A] font-bold hover:underline inline-flex items-center gap-1"
-              >
-                <span className="material-symbols-outlined text-[15px]">bolt</span>
-                <span>Quick Fill Demo Address</span>
-              </button>
-            </div>
+
           </div>
         )}
       </main>

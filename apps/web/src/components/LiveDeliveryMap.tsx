@@ -24,7 +24,7 @@ export default function LiveDeliveryMap({
   orderNumber,
   status = 'OUT_FOR_DELIVERY',
   riderName = 'Delivery Partner',
-  riderVehicle = 'MP-09-JR-2026',
+  riderVehicle,
   height = '360px',
   isRiderView = false,
   onLocationUpdate,
@@ -43,9 +43,6 @@ export default function LiveDeliveryMap({
       ? { lat: driverLocation.latitude, lng: driverLocation.longitude, heading: driverLocation.heading ?? 0 }
       : null
   );
-
-  const [isSimulating, setIsSimulating] = useState(false);
-  const simulationIntervalRef = useRef<any>(null);
 
   // Calculate distance in km
   const getDistanceKm = useCallback((lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -217,7 +214,6 @@ export default function LiveDeliveryMap({
 
     return () => {
       isMounted = false;
-      if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
@@ -228,7 +224,20 @@ export default function LiveDeliveryMap({
 
   // Update Driver Marker smoothly when driverLocation prop changes
   useEffect(() => {
-    if (!driverLocation || !mapInstanceRef.current) return;
+    if (!mapInstanceRef.current) return;
+
+    if (!driverLocation) {
+      setCurrentDriverPos(null);
+      if (driverMarkerRef.current) {
+        driverMarkerRef.current.remove();
+        driverMarkerRef.current = null;
+      }
+      if (polylineRef.current) {
+        polylineRef.current.remove();
+        polylineRef.current = null;
+      }
+      return;
+    }
 
     const targetLat = driverLocation.latitude;
     const targetLng = driverLocation.longitude;
@@ -237,24 +246,70 @@ export default function LiveDeliveryMap({
     setCurrentDriverPos({ lat: targetLat, lng: targetLng, heading });
 
     if (driverMarkerRef.current) {
-      // Existing marker — just move it
       driverMarkerRef.current.setLatLng([targetLat, targetLng]);
     } else {
-      // First real location received — trigger map re-init so marker is added
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
+      import('leaflet').then((L) => {
+        if (!mapInstanceRef.current || driverMarkerRef.current) return;
+        const driverIcon = L.divIcon({
+          className: 'custom-driver-marker',
+          html: `
+            <div style="position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
+              <div style="position: absolute; inset: -4px; border-radius: 9999px; background: rgba(56, 117, 74, 0.25); animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+              <div style="position: relative; background: #38754A; color: white; border: 2.5px solid white; border-radius: 9999px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(56, 117, 74, 0.45); transform: rotate(${heading}deg); transition: transform 0.4s ease;">
+                <span class="material-symbols-outlined" style="font-size: 22px;">two_wheeler</span>
+              </div>
+            </div>
+          `,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22],
+        });
+
+        driverMarkerRef.current = L.marker([targetLat, targetLng], {
+          icon: driverIcon,
+          zIndexOffset: 1000,
+        })
+          .addTo(mapInstanceRef.current)
+          .bindPopup(`<strong>${riderName}</strong>${riderVehicle ? `<br/>${riderVehicle}` : ''} • Out for Delivery`);
+      });
     }
 
-    if (polylineRef.current) {
-      polylineRef.current.setLatLngs([
-        [kitchenLocation.latitude, kitchenLocation.longitude],
-        [targetLat, targetLng],
-        [customerLocation.latitude, customerLocation.longitude],
-      ]);
-    }
-  }, [driverLocation, customerLocation, kitchenLocation]);
+    import('leaflet').then((L) => {
+      if (!mapInstanceRef.current) return;
+      if (!polylineRef.current) {
+        polylineRef.current = L.polyline(
+          [
+            [kitchenLocation.latitude, kitchenLocation.longitude],
+            [targetLat, targetLng],
+            [customerLocation.latitude, customerLocation.longitude],
+          ],
+          {
+            color: '#38754A',
+            weight: 4.5,
+            opacity: 0.85,
+            dashArray: '8, 8',
+            lineCap: 'round',
+            lineJoin: 'round',
+          }
+        ).addTo(mapInstanceRef.current);
+      } else {
+        polylineRef.current.setLatLngs([
+          [kitchenLocation.latitude, kitchenLocation.longitude],
+          [targetLat, targetLng],
+          [customerLocation.latitude, customerLocation.longitude],
+        ]);
+      }
+
+      api
+        .getDirections(targetLat, targetLng, customerLocation.latitude, customerLocation.longitude)
+        .then((directions) => {
+          if (!mapInstanceRef.current || !polylineRef.current) return;
+          if (directions && directions.coordinates && directions.coordinates.length > 1) {
+            polylineRef.current.setLatLngs(directions.coordinates);
+          }
+        })
+        .catch(() => {});
+    });
+  }, [driverLocation, customerLocation, kitchenLocation, riderName, riderVehicle]);
 
   // Recenter on Driver (only valid when driver position is known)
   const handleRecenterOnDriver = () => {
@@ -280,59 +335,6 @@ export default function LiveDeliveryMap({
       const bounds = L.latLngBounds(points);
       mapInstanceRef.current.fitBounds(bounds.pad(0.25));
     });
-  };
-
-  // Simulation mode: Smoothly moves rider along route to customer (Swiggy/Zomato test experience)
-  const toggleSimulation = () => {
-    if (isSimulating) {
-      if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
-      setIsSimulating(false);
-      return;
-    }
-
-    setIsSimulating(true);
-
-    let step = 0;
-    const totalSteps = 40;
-    const startLat = kitchenLocation.latitude;
-    const startLng = kitchenLocation.longitude;
-    const endLat = customerLocation.latitude;
-    const endLng = customerLocation.longitude;
-
-    if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
-
-    simulationIntervalRef.current = setInterval(() => {
-      step = (step + 1) % (totalSteps + 1);
-      const ratio = step / totalSteps;
-      const nextLat = startLat + (endLat - startLat) * ratio;
-      const nextLng = startLng + (endLng - startLng) * ratio;
-
-      // Calculate bearing angle
-      const dLon = endLng - startLng;
-      const y = Math.sin(dLon) * Math.cos(endLat);
-      const x =
-        Math.cos(startLat) * Math.sin(endLat) -
-        Math.sin(startLat) * Math.cos(endLat) * Math.cos(dLon);
-      const bearing = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-
-      setCurrentDriverPos({ lat: nextLat, lng: nextLng, heading: bearing });
-
-      if (driverMarkerRef.current) {
-        driverMarkerRef.current.setLatLng([nextLat, nextLng]);
-      }
-
-      if (polylineRef.current) {
-        polylineRef.current.setLatLngs([
-          [kitchenLocation.latitude, kitchenLocation.longitude],
-          [nextLat, nextLng],
-          [endLat, endLng],
-        ]);
-      }
-
-      if (onLocationUpdate) {
-        onLocationUpdate({ latitude: nextLat, longitude: nextLng, heading: bearing });
-      }
-    }, 1200);
   };
 
   return (
@@ -375,15 +377,17 @@ export default function LiveDeliveryMap({
 
       {/* Floating Action Controls on Map */}
       <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1.5 pointer-events-auto">
-        <button
-          type="button"
-          onClick={handleRecenterOnDriver}
-          title="Center on Driver"
-          className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-[#292D26] text-[11px] font-bold border border-slate-200 shadow-md flex items-center gap-1 active:scale-95 transition-all"
-        >
-          <span className="material-symbols-outlined text-[15px] text-[#38754A]">my_location</span>
-          <span>Driver</span>
-        </button>
+        {currentDriverPos && (
+          <button
+            type="button"
+            onClick={handleRecenterOnDriver}
+            title="Center on Driver"
+            className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-[#292D26] text-[11px] font-bold border border-slate-200 shadow-md flex items-center gap-1 active:scale-95 transition-all"
+          >
+            <span className="material-symbols-outlined text-[15px] text-[#38754A]">my_location</span>
+            <span>Driver</span>
+          </button>
+        )}
 
         <button
           type="button"
@@ -393,22 +397,6 @@ export default function LiveDeliveryMap({
         >
           <span className="material-symbols-outlined text-[15px] text-amber-700">route</span>
           <span>Full Route</span>
-        </button>
-
-        {/* Simulation Demo Toggle (Swiggy/Zomato real-time motion preview) */}
-        <button
-          type="button"
-          onClick={toggleSimulation}
-          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border shadow-md flex items-center gap-1 active:scale-95 transition-all ${
-            isSimulating
-              ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
-              : 'bg-emerald-700 hover:bg-emerald-800 text-white border-emerald-800'
-          }`}
-        >
-          <span className="material-symbols-outlined text-[15px]">
-            {isSimulating ? 'stop_circle' : 'play_circle'}
-          </span>
-          <span>{isSimulating ? 'Stop Sim' : 'Simulate Motion'}</span>
         </button>
       </div>
 
