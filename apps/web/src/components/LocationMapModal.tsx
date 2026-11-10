@@ -117,6 +117,8 @@ export default function LocationMapModal({
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   const [accuracyMode, setAccuracyMode] = useState<'precise' | 'approximate'>('precise');
   const [savedAddresses, setSavedAddresses] = useState<LocationData[]>([]);
+  const searchTimerRef = useRef<any>(null);
+  const reverseGeocodeTimerRef = useRef<any>(null);
 
   const searchTimerRef = useRef<any>(null);
   const reverseGeocodeTimerRef = useRef<any>(null);

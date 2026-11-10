@@ -49,3 +49,33 @@ export function saveActiveOrder(trackingToken: string, orderNumber: string) {
   } catch {}
 }
 
+/**
+ * Removes stale, expired, or non-existent (404) tracking tokens from localStorage
+ * so the frontend does not get trapped in an endless 404 polling loop.
+ */
+export function clearActiveTrackingIdentifier(invalidToken?: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const currentToken = window.localStorage.getItem('jr_last_tracking_token');
+    const currentOrderNumber = window.localStorage.getItem('jr_last_order_number');
+
+    if (!invalidToken || currentToken === invalidToken || currentOrderNumber === invalidToken) {
+      window.localStorage.removeItem('jr_last_tracking_token');
+      window.localStorage.removeItem('jr_last_order_number');
+    }
+
+    if (invalidToken) {
+      const raw = window.localStorage.getItem('jr_recent_orders');
+      if (raw) {
+        const recents = JSON.parse(raw);
+        if (Array.isArray(recents)) {
+          const filtered = recents.filter(
+            (r: any) => r.trackingToken !== invalidToken && r.orderNumber !== invalidToken
+          );
+          window.localStorage.setItem('jr_recent_orders', JSON.stringify(filtered));
+        }
+      }
+    }
+  } catch {}
+}
+

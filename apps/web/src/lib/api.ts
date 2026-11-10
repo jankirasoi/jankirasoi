@@ -830,7 +830,9 @@ export const api = {
     const res = await fetch(`${base}/orders/track/${encodeURIComponent(token)}`, { cache: 'no-store' });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Tracking token not found or expired');
+      const error: any = new Error(err.message || 'Tracking token not found or expired');
+      error.status = res.status;
+      throw error;
     }
     return res.json();
   },

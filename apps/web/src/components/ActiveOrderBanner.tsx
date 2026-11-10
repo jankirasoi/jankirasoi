@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { api, TrackOrderResponse } from '../lib/api';
-import { getActiveTrackingIdentifier } from '../lib/orderStorage';
+import { getActiveTrackingIdentifier, clearActiveTrackingIdentifier } from '../lib/orderStorage';
 import LakhanAvatar from './LakhanAvatar';
 
 interface ActiveOrderBannerProps {
@@ -32,8 +32,13 @@ export default function ActiveOrderBanner({ className = '' }: ActiveOrderBannerP
       } else {
         setOrder(null);
       }
-    } catch {
-      // In case of network glitch, keep existing active state or try fallback
+    } catch (err: any) {
+      // If 404 (order not found / deleted / stale), clear from localStorage to stop polling spam
+      if (err?.status === 404 || err?.message?.toLowerCase().includes('not found')) {
+        clearActiveTrackingIdentifier(identifier);
+        setOrder(null);
+        setTrackingId(null);
+      }
     }
   }, []);
 

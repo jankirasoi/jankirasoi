@@ -11,7 +11,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { api, TrackOrderResponse, CatalogResponse, DEFAULT_FOOD_IMAGE } from '../../lib/api';
-import { getActiveTrackingIdentifier } from '../../lib/orderStorage';
+import { getActiveTrackingIdentifier, clearActiveTrackingIdentifier } from '../../lib/orderStorage';
 import LakhanAvatar from '../../components/LakhanAvatar';
 import TrackingRoadMap from '../../components/TrackingRoadMap';
 
@@ -495,10 +495,16 @@ function OrderTrackingContent() {
       );
 
       const fetchedOrders: TrackOrderResponse[] = [];
-      results.forEach((res) => {
+      results.forEach((res, idx) => {
         if (res.status === 'fulfilled' && res.value?.orderNumber) {
           if (!fetchedOrders.some((o) => o.orderNumber === res.value.orderNumber)) {
             fetchedOrders.push(res.value);
+          }
+        } else if (res.status === 'rejected') {
+          const rejectedToken = tokensToFetch[idx];
+          const err = res.reason;
+          if (err?.status === 404 || err?.message?.toLowerCase().includes('not found')) {
+            clearActiveTrackingIdentifier(rejectedToken);
           }
         }
       });
@@ -518,7 +524,13 @@ function OrderTrackingContent() {
 
   useEffect(() => {
     loadOrders(false);
-    const interval = setInterval(() => loadOrders(true), 4000);
+
+    // Only run recurring polling interval if there is an active token to track
+    const interval = setInterval(() => {
+      if (!urlToken && !getActiveTrackingIdentifier()) return;
+      loadOrders(true);
+    }, 5000);
+
     const handleSync = () => loadOrders(true);
 
     window.addEventListener('visibilitychange', handleSync);
@@ -531,7 +543,7 @@ function OrderTrackingContent() {
       window.removeEventListener('focus', handleSync);
       window.removeEventListener('jr_order_placed', handleSync);
     };
-  }, [loadOrders]);
+  }, [loadOrders, urlToken]);
 
   const handleSearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

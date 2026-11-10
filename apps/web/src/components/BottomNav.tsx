@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '../context/CartContext';
 import { api, TrackOrderResponse } from '../lib/api';
-import { getActiveTrackingIdentifier } from '../lib/orderStorage';
+import { getActiveTrackingIdentifier, clearActiveTrackingIdentifier } from '../lib/orderStorage';
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -54,7 +54,11 @@ export default function BottomNav() {
         } else {
           setActiveOrder(null);
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.status === 404 || err?.message?.toLowerCase().includes('not found')) {
+          const lastToken = getActiveTrackingIdentifier();
+          if (lastToken) clearActiveTrackingIdentifier(lastToken);
+        }
         if (isMounted) setActiveOrder(null);
       }
     }
