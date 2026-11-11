@@ -168,14 +168,20 @@ export default function LiveDeliveryMap({
           .addTo(map)
           .bindPopup(`<strong>${riderName}</strong><br/>${riderVehicle || ''} • Out for Delivery`);
 
-        // 4. Route Polyline connecting Kitchen -> Driver -> Destination
-        const routePoints: [number, number][] = [
-          [kitchenLocation.latitude, kitchenLocation.longitude],
-          [driverLocation.latitude, driverLocation.longitude],
-          [customerLocation.latitude, customerLocation.longitude],
-        ];
+        // 4. Initial route polyline & Ola Maps directions setup
+        const isEnRoute = status === 'OUT_FOR_DELIVERY' || status === 'DISPATCHED';
+        const initialPoints: [number, number][] = isEnRoute
+          ? [
+              [driverLocation.latitude, driverLocation.longitude],
+              [customerLocation.latitude, customerLocation.longitude],
+            ]
+          : [
+              [driverLocation.latitude, driverLocation.longitude],
+              [kitchenLocation.latitude, kitchenLocation.longitude],
+              [customerLocation.latitude, customerLocation.longitude],
+            ];
 
-        polylineRef.current = L.polyline(routePoints, {
+        polylineRef.current = L.polyline(initialPoints, {
           color: '#38754A',
           weight: 4.5,
           opacity: 0.85,
@@ -185,13 +191,82 @@ export default function LiveDeliveryMap({
         }).addTo(map);
 
         // Asynchronously fetch accurate road directions from Ola Maps
-        const startLat = driverLocation.latitude;
-        const startLng = driverLocation.longitude;
+        if (isEnRoute) {
+          api
+            .getDirections(
+              driverLocation.latitude,
+              driverLocation.longitude,
+              customerLocation.latitude,
+              customerLocation.longitude,
+            )
+            .then((directions) => {
+              if (!isMounted || !mapInstanceRef.current || !polylineRef.current) return;
+              if (directions && directions.coordinates && directions.coordinates.length > 1) {
+                polylineRef.current.setLatLngs(directions.coordinates);
+              }
+            })
+            .catch(() => {});
+        } else {
+          // Multi-leg: Driver -> Kitchen, and Kitchen -> Customer
+          Promise.all([
+            api.getDirections(
+              driverLocation.latitude,
+              driverLocation.longitude,
+              kitchenLocation.latitude,
+              kitchenLocation.longitude,
+            ),
+            api.getDirections(
+              kitchenLocation.latitude,
+              kitchenLocation.longitude,
+              customerLocation.latitude,
+              customerLocation.longitude,
+            ),
+          ])
+            .then(([leg1, leg2]) => {
+              if (!isMounted || !mapInstanceRef.current || !polylineRef.current) return;
+              const combined: [number, number][] = [];
+              if (leg1 && leg1.coordinates && leg1.coordinates.length > 0) {
+                combined.push(...leg1.coordinates);
+              } else {
+                combined.push(
+                  [driverLocation.latitude, driverLocation.longitude],
+                  [kitchenLocation.latitude, kitchenLocation.longitude],
+                );
+              }
+              if (leg2 && leg2.coordinates && leg2.coordinates.length > 0) {
+                combined.push(...leg2.coordinates);
+              } else {
+                combined.push(
+                  [kitchenLocation.latitude, kitchenLocation.longitude],
+                  [customerLocation.latitude, customerLocation.longitude],
+                );
+              }
+              if (combined.length > 1) {
+                polylineRef.current.setLatLngs(combined);
+              }
+            })
+            .catch(() => {});
+        }
+      } else {
+        // Without driver: Kitchen -> Customer polyline
+        const initialPoints: [number, number][] = [
+          [kitchenLocation.latitude, kitchenLocation.longitude],
+          [customerLocation.latitude, customerLocation.longitude],
+        ];
+
+        polylineRef.current = L.polyline(initialPoints, {
+          color: '#38754A',
+          weight: 4.5,
+          opacity: 0.85,
+          dashArray: '8, 8',
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
 
         api
           .getDirections(
-            startLat,
-            startLng,
+            kitchenLocation.latitude,
+            kitchenLocation.longitude,
             customerLocation.latitude,
             customerLocation.longitude,
           )
@@ -210,7 +285,6 @@ export default function LiveDeliveryMap({
         : L.featureGroup([customerMarkerRef.current, kitchenMarkerRef.current]);
       map.fitBounds(markerGroup.getBounds().pad(0.2));
     });
-
 
     return () => {
       isMounted = false;
@@ -231,10 +305,6 @@ export default function LiveDeliveryMap({
       if (driverMarkerRef.current) {
         driverMarkerRef.current.remove();
         driverMarkerRef.current = null;
-      }
-      if (polylineRef.current) {
-        polylineRef.current.remove();
-        polylineRef.current = null;
       }
       return;
     }
@@ -275,41 +345,71 @@ export default function LiveDeliveryMap({
 
     import('leaflet').then((L) => {
       if (!mapInstanceRef.current) return;
-      if (!polylineRef.current) {
-        polylineRef.current = L.polyline(
-          [
-            [kitchenLocation.latitude, kitchenLocation.longitude],
+      const isEnRoute = status === 'OUT_FOR_DELIVERY' || status === 'DISPATCHED';
+
+      const initialPoints: [number, number][] = isEnRoute
+        ? [
             [targetLat, targetLng],
             [customerLocation.latitude, customerLocation.longitude],
-          ],
-          {
-            color: '#38754A',
-            weight: 4.5,
-            opacity: 0.85,
-            dashArray: '8, 8',
-            lineCap: 'round',
-            lineJoin: 'round',
-          }
-        ).addTo(mapInstanceRef.current);
+          ]
+        : [
+            [targetLat, targetLng],
+            [kitchenLocation.latitude, kitchenLocation.longitude],
+            [customerLocation.latitude, customerLocation.longitude],
+          ];
+
+      if (!polylineRef.current) {
+        polylineRef.current = L.polyline(initialPoints, {
+          color: '#38754A',
+          weight: 4.5,
+          opacity: 0.85,
+          dashArray: '8, 8',
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(mapInstanceRef.current);
       } else {
-        polylineRef.current.setLatLngs([
-          [kitchenLocation.latitude, kitchenLocation.longitude],
-          [targetLat, targetLng],
-          [customerLocation.latitude, customerLocation.longitude],
-        ]);
+        polylineRef.current.setLatLngs(initialPoints);
       }
 
-      api
-        .getDirections(targetLat, targetLng, customerLocation.latitude, customerLocation.longitude)
-        .then((directions) => {
-          if (!mapInstanceRef.current || !polylineRef.current) return;
-          if (directions && directions.coordinates && directions.coordinates.length > 1) {
-            polylineRef.current.setLatLngs(directions.coordinates);
-          }
-        })
-        .catch(() => {});
+      if (isEnRoute) {
+        api
+          .getDirections(targetLat, targetLng, customerLocation.latitude, customerLocation.longitude)
+          .then((directions) => {
+            if (!mapInstanceRef.current || !polylineRef.current) return;
+            if (directions && directions.coordinates && directions.coordinates.length > 1) {
+              polylineRef.current.setLatLngs(directions.coordinates);
+            }
+          })
+          .catch(() => {});
+      } else {
+        Promise.all([
+          api.getDirections(targetLat, targetLng, kitchenLocation.latitude, kitchenLocation.longitude),
+          api.getDirections(kitchenLocation.latitude, kitchenLocation.longitude, customerLocation.latitude, customerLocation.longitude),
+        ])
+          .then(([leg1, leg2]) => {
+            if (!mapInstanceRef.current || !polylineRef.current) return;
+            const combined: [number, number][] = [];
+            if (leg1 && leg1.coordinates && leg1.coordinates.length > 0) {
+              combined.push(...leg1.coordinates);
+            } else {
+              combined.push([targetLat, targetLng], [kitchenLocation.latitude, kitchenLocation.longitude]);
+            }
+            if (leg2 && leg2.coordinates && leg2.coordinates.length > 0) {
+              combined.push(...leg2.coordinates);
+            } else {
+              combined.push(
+                [kitchenLocation.latitude, kitchenLocation.longitude],
+                [customerLocation.latitude, customerLocation.longitude],
+              );
+            }
+            if (combined.length > 1) {
+              polylineRef.current.setLatLngs(combined);
+            }
+          })
+          .catch(() => {});
+      }
     });
-  }, [driverLocation, customerLocation, kitchenLocation, riderName, riderVehicle]);
+  }, [driverLocation, customerLocation, kitchenLocation, riderName, riderVehicle, status]);
 
   // Recenter on Driver (only valid when driver position is known)
   const handleRecenterOnDriver = () => {
@@ -320,7 +420,7 @@ export default function LiveDeliveryMap({
     });
   };
 
-  // Fit Entire Route
+  // Fit Entire Route (Driver + Kitchen + Customer)
   const handleFitRoute = () => {
     if (!mapInstanceRef.current || typeof window === 'undefined') return;
     import('leaflet').then((L) => {
@@ -330,12 +430,46 @@ export default function LiveDeliveryMap({
         [customerLocation.latitude, customerLocation.longitude],
       ];
       if (currentDriverPos) {
-        points.splice(1, 0, [currentDriverPos.lat, currentDriverPos.lng]);
+        points.push([currentDriverPos.lat, currentDriverPos.lng]);
       }
       const bounds = L.latLngBounds(points);
+      mapInstanceRef.current.fitBounds(bounds.pad(0.2));
+    });
+  };
+
+  // Focus into Kitchen & Customer Drop-off area
+  const handleFitLocalArea = () => {
+    if (!mapInstanceRef.current || typeof window === 'undefined') return;
+    import('leaflet').then((L) => {
+      if (!mapInstanceRef.current) return;
+      const bounds = L.latLngBounds([
+        [kitchenLocation.latitude, kitchenLocation.longitude],
+        [customerLocation.latitude, customerLocation.longitude],
+      ]);
       mapInstanceRef.current.fitBounds(bounds.pad(0.25));
     });
   };
+
+  // Dynamic Distances
+  const isEnRouteToCustomer = status === 'OUT_FOR_DELIVERY' || status === 'DISPATCHED';
+  const driverToCustomerDist = currentDriverPos
+    ? getDistanceKm(currentDriverPos.lat, currentDriverPos.lng, customerLocation.latitude, customerLocation.longitude)
+    : null;
+  const driverToKitchenDist = currentDriverPos
+    ? getDistanceKm(currentDriverPos.lat, currentDriverPos.lng, kitchenLocation.latitude, kitchenLocation.longitude)
+    : null;
+  const kitchenToCustomerDist = getDistanceKm(
+    kitchenLocation.latitude,
+    kitchenLocation.longitude,
+    customerLocation.latitude,
+    customerLocation.longitude
+  );
+  const totalTripDist =
+    driverToKitchenDist !== null
+      ? isEnRouteToCustomer
+        ? driverToCustomerDist!
+        : Math.round((driverToKitchenDist + kitchenToCustomerDist) * 10) / 10
+      : kitchenToCustomerDist;
 
   return (
     <div className="relative w-full overflow-hidden rounded-2xl border border-[#EEE7DC] bg-[#FFF9F0] shadow-sm">
@@ -347,24 +481,75 @@ export default function LiveDeliveryMap({
       />
 
       {/* Floating Status & ETA Card */}
-      <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 pointer-events-auto">
+      <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 pointer-events-auto max-w-[calc(100%-80px)]">
         <div className="px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse shrink-0" />
-          <div className="flex flex-col">
-            <span className="text-[11px] font-black text-[#292D26] leading-none">
-              {status === 'DELIVERED'
-                ? 'Delivered to Customer'
-                : currentDriverPos
-                  ? `Driver ~${getDistanceKm(currentDriverPos.lat, currentDriverPos.lng, customerLocation.latitude, customerLocation.longitude)} km away`
-                  : 'Awaiting rider assignment'}
-            </span>
-            <span className="text-[10px] text-[#77786F] font-semibold">
-              {status === 'DELIVERED'
-                ? 'Order Complete'
-                : currentDriverPos
-                  ? `ETA ~${Math.max(2, Math.round(getDistanceKm(currentDriverPos.lat, currentDriverPos.lng, customerLocation.latitude, customerLocation.longitude) * 3.5))} mins • On the way`
-                  : 'Rider will be assigned soon'}
-            </span>
+          <div className="flex flex-col min-w-0">
+            {status === 'DELIVERED' ? (
+              <>
+                <span className="text-[11px] font-black text-[#292D26] leading-none">Delivered to Customer</span>
+                <span className="text-[10px] text-[#77786F] font-semibold">Order Complete</span>
+              </>
+            ) : currentDriverPos ? (
+              isRiderView ? (
+                isEnRouteToCustomer ? (
+                  <>
+                    <span className="text-[11px] font-black text-[#292D26] leading-none truncate">
+                      En route to Drop-off • ~{driverToCustomerDist} km
+                    </span>
+                    <span className="text-[10px] text-[#77786F] font-semibold truncate">
+                      ETA ~{Math.max(2, Math.round(driverToCustomerDist! * 3.2))} mins • Carrying customer order
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-[11px] font-black text-[#292D26] leading-none truncate">
+                      {driverToKitchenDist! < 0.25
+                        ? `At Kitchen • Drop-off ~${kitchenToCustomerDist} km`
+                        : `Pickup ~${driverToKitchenDist} km • Total ~${totalTripDist} km`}
+                    </span>
+                    <span className="text-[10px] text-[#77786F] font-semibold truncate">
+                      {driverToKitchenDist! < 0.25
+                        ? `Ready for food pickup • Next: ~${kitchenToCustomerDist} km`
+                        : `You ➔ Kitchen: ~${driverToKitchenDist} km • Kitchen ➔ Drop: ~${kitchenToCustomerDist} km`}
+                    </span>
+                  </>
+                )
+              ) : (
+                isEnRouteToCustomer ? (
+                  <>
+                    <span className="text-[11px] font-black text-[#292D26] leading-none truncate">
+                      Rider ~{driverToCustomerDist} km away • On the way
+                    </span>
+                    <span className="text-[10px] text-[#77786F] font-semibold truncate">
+                      ETA ~{Math.max(2, Math.round(driverToCustomerDist! * 3.2))} mins • Delivering your order
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-[11px] font-black text-[#292D26] leading-none truncate">
+                      {driverToKitchenDist! < 0.25
+                        ? 'Rider arrived at Kitchen'
+                        : `Rider assigned • ~${driverToKitchenDist} km from Kitchen`}
+                    </span>
+                    <span className="text-[10px] text-[#77786F] font-semibold truncate">
+                      {driverToKitchenDist! < 0.25
+                        ? 'Collecting fresh food from kitchen'
+                        : `Kitchen ➔ Drop distance is ~${kitchenToCustomerDist} km`}
+                    </span>
+                  </>
+                )
+              )
+            ) : (
+              <>
+                <span className="text-[11px] font-black text-[#292D26] leading-none truncate">
+                  Kitchen ➔ Drop ~{kitchenToCustomerDist} km
+                </span>
+                <span className="text-[10px] text-[#77786F] font-semibold truncate">
+                  Awaiting rider GPS assignment
+                </span>
+              </>
+            )}
           </div>
         </div>
 
@@ -392,24 +577,40 @@ export default function LiveDeliveryMap({
         <button
           type="button"
           onClick={handleFitRoute}
-          title="Fit Route"
+          title="Fit Full Route"
           className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-[#292D26] text-[11px] font-bold border border-slate-200 shadow-md flex items-center gap-1 active:scale-95 transition-all"
         >
           <span className="material-symbols-outlined text-[15px] text-amber-700">route</span>
           <span>Full Route</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleFitLocalArea}
+          title="Zoom to Kitchen & Drop"
+          className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-[#292D26] text-[11px] font-bold border border-slate-200 shadow-md flex items-center gap-1 active:scale-95 transition-all"
+        >
+          <span className="material-symbols-outlined text-[15px] text-emerald-700">store</span>
+          <span>Kitchen & Drop</span>
         </button>
       </div>
 
       {/* External Google Maps Navigation link for real rider on the road */}
       {isRiderView && (
         <a
-          href={`https://www.google.com/maps/dir/?api=1&destination=${customerLocation.latitude},${customerLocation.longitude}`}
+          href={
+            status === 'OUT_FOR_DELIVERY' || status === 'DISPATCHED'
+              ? `https://www.google.com/maps/dir/?api=1&destination=${customerLocation.latitude},${customerLocation.longitude}`
+              : `https://www.google.com/maps/dir/?api=1&destination=${kitchenLocation.latitude},${kitchenLocation.longitude}`
+          }
           target="_blank"
           rel="noopener noreferrer"
           className="absolute top-3 right-3 z-10 px-3 py-1.5 rounded-xl bg-[#38754A] hover:bg-[#285C38] text-white text-[11px] font-bold shadow-md flex items-center gap-1 pointer-events-auto transition-colors"
         >
           <span className="material-symbols-outlined text-[15px]">navigation</span>
-          <span>Turn-by-Turn</span>
+          <span>
+            {status === 'OUT_FOR_DELIVERY' || status === 'DISPATCHED' ? 'To Customer' : 'To Kitchen'}
+          </span>
         </a>
       )}
     </div>

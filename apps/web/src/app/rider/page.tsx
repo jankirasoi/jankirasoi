@@ -109,46 +109,92 @@ export default function RiderPage() {
     return Math.round(R * c * 10) / 10;
   }, []);
 
-  // ponytail: calculate actual local delivery distance & ETA (kitni der lagegi)
+  // Calculate delivery distance & ETA based on real live rider location & trip phase (Kitchen pickup vs Drop-off)
   const getDeliveryDistanceAndEta = useCallback(
     (del: RiderDelivery) => {
       const destLat = del.coordinates?.latitude || 22.6312;
       const destLng = del.coordinates?.longitude || 75.5715;
 
-      let startLat = SAGORE_KITCHEN_COORDS.lat;
-      let startLng = SAGORE_KITCHEN_COORDS.lng;
-      let isLiveRiderLocation = false;
+      const isOutForDelivery = del.status === 'OUT_FOR_DELIVERY' || del.status === 'DISPATCHED';
 
-      if (riderGps) {
-        const distFromKitchen = calculateDistanceKm(
-          riderGps.lat,
-          riderGps.lng,
-          SAGORE_KITCHEN_COORDS.lat,
-          SAGORE_KITCHEN_COORDS.lng
-        );
-        // If rider GPS is within 15 km of Sagore kitchen, use live rider location
-        if (distFromKitchen <= 15) {
-          startLat = riderGps.lat;
-          startLng = riderGps.lng;
-          isLiveRiderLocation = true;
-        }
+      const kitchenToCustomerKm = calculateDistanceKm(
+        SAGORE_KITCHEN_COORDS.lat,
+        SAGORE_KITCHEN_COORDS.lng,
+        destLat,
+        destLng
+      );
+
+      if (!riderGps) {
+        // Without rider GPS, calculate distance from kitchen to customer
+        const etaMins = Math.max(5, Math.round(kitchenToCustomerKm * 3.2 + 3));
+        return {
+          distanceKm: kitchenToCustomerKm,
+          etaMins,
+          isLiveRiderLocation: false,
+          isOutForDelivery: false,
+          riderToKitchenKm: null as number | null,
+          kitchenToCustomerKm,
+          totalTripKm: kitchenToCustomerKm,
+          label: `~${kitchenToCustomerKm} km (Kitchen ➔ Drop)`,
+          sublabel: 'Turn on GPS for live distance from your location',
+        };
       }
 
-      let distKm = calculateDistanceKm(startLat, startLng, destLat, destLng);
-      if (distKm <= 0.1) {
-        distKm = 1.6;
+      // Live Rider GPS is active (calculates accurately even if rider is 200 km away testing)
+      const riderToKitchenKm = calculateDistanceKm(
+        riderGps.lat,
+        riderGps.lng,
+        SAGORE_KITCHEN_COORDS.lat,
+        SAGORE_KITCHEN_COORDS.lng
+      );
+
+      const riderToCustomerKm = calculateDistanceKm(
+        riderGps.lat,
+        riderGps.lng,
+        destLat,
+        destLng
+      );
+
+      if (isOutForDelivery) {
+        // Food is already picked up: Rider goes directly to customer
+        const etaMins = Math.max(3, Math.round(riderToCustomerKm * 3.2 + 2));
+        return {
+          distanceKm: riderToCustomerKm,
+          etaMins,
+          isLiveRiderLocation: true,
+          isOutForDelivery: true,
+          riderToKitchenKm: 0,
+          kitchenToCustomerKm,
+          totalTripKm: riderToCustomerKm,
+          label: `~${riderToCustomerKm} km (You ➔ Drop)`,
+          sublabel: 'Food picked up • On the way to customer',
+        };
+      } else {
+        // Order pending pickup: Rider travels to Kitchen first, then delivers to Customer
+        const isAtKitchen = riderToKitchenKm < 0.25;
+        const totalTripKm = isAtKitchen
+          ? kitchenToCustomerKm
+          : Math.round((riderToKitchenKm + kitchenToCustomerKm) * 10) / 10;
+        const etaMins = Math.max(5, Math.round(totalTripKm * 3.2 + 5));
+
+        return {
+          distanceKm: totalTripKm,
+          etaMins,
+          isLiveRiderLocation: true,
+          isOutForDelivery: false,
+          riderToKitchenKm: isAtKitchen ? 0 : riderToKitchenKm,
+          kitchenToCustomerKm,
+          totalTripKm,
+          label: isAtKitchen
+            ? `~${kitchenToCustomerKm} km (At Kitchen ➔ Drop)`
+            : `~${totalTripKm} km total route`,
+          sublabel: isAtKitchen
+            ? 'At Kitchen • Waiting for food handover'
+            : `You ➔ Kitchen: ~${riderToKitchenKm} km • Kitchen ➔ Drop: ~${kitchenToCustomerKm} km`,
+        };
       }
-
-      // Local two-wheeler speed: ~20 km/h (3.2 mins/km) + 3 mins traffic + 2 mins doorstep handover
-      const etaMins = Math.max(5, Math.round(distKm * 3.2 + 3));
-
-      return {
-        distanceKm: distKm,
-        etaMins,
-        isLiveRiderLocation,
-      };
     },
-    [riderGps, calculateDistanceKm]
+    [riderGps, calculateDistanceKm, SAGORE_KITCHEN_COORDS]
   );
 
   const showRiderToast = (msg: string) => {
@@ -1128,17 +1174,24 @@ export default function RiderPage() {
                               Drop Location
                             </span>
                             {(() => {
-                              const { distanceKm, etaMins, isLiveRiderLocation } = getDeliveryDistanceAndEta(del);
+                              const info = getDeliveryDistanceAndEta(del);
                               return (
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-[10px] font-bold text-[#38754A] flex items-center gap-0.5 bg-[#EAF4ED] border border-[#38754A]/30 px-1.5 py-0.5 rounded-md">
-                                    <span className="material-symbols-outlined text-[12px]">schedule</span>
-                                    <span>~{etaMins} mins</span>
-                                  </span>
-                                  <span className="text-[10px] font-semibold text-slate-600 flex items-center gap-0.5">
-                                    <span className="material-symbols-outlined text-[12px] text-slate-400">near_me</span>
-                                    <span>~{distanceKm} km {isLiveRiderLocation ? '(live from you)' : '(from kitchen)'}</span>
-                                  </span>
+                                <div className="flex flex-col items-end gap-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                    <span className="text-[10px] font-bold text-[#38754A] flex items-center gap-0.5 bg-[#EAF4ED] border border-[#38754A]/30 px-1.5 py-0.5 rounded-md">
+                                      <span className="material-symbols-outlined text-[12px]">schedule</span>
+                                      <span>~{info.etaMins} mins</span>
+                                    </span>
+                                    <span className="text-[10px] font-semibold text-slate-700 flex items-center gap-0.5 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                                      <span className="material-symbols-outlined text-[12px] text-[#38754A]">near_me</span>
+                                      <span>{info.label}</span>
+                                    </span>
+                                  </div>
+                                  {info.sublabel && (
+                                    <span className="text-[9.5px] text-slate-500 font-medium text-right max-w-[260px] truncate" title={info.sublabel}>
+                                      {info.sublabel}
+                                    </span>
+                                  )}
                                 </div>
                               );
                             })()}
@@ -1434,66 +1487,132 @@ export default function RiderPage() {
                 </div>
 
                 {/* Route Breakdown: Pickup -> Drop-off */}
-                <div className="flex flex-col gap-2 bg-[#FFF9F0] p-3 rounded-2xl border border-[#EEE7DC] text-xs">
-                  {/* Pickup Stop */}
-                  <div className="flex items-start gap-2.5 pb-2 border-b border-[#EEE7DC]/70">
-                    <span className="w-5 h-5 rounded-full bg-[#EAF4ED] text-[#38754A] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                      A
-                    </span>
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-bold text-[#77786F] uppercase tracking-wider block">
-                        Kitchen Pickup
-                      </span>
-                      <span className="font-bold text-[#292D26] block">Janki Rasoi Cloud Kitchen</span>
-                      <span className="text-[11px] text-[#77786F]">Main Bazar, Sagore, Pithampur (454774)</span>
-                    </div>
-                  </div>
-
-                  {/* Drop-off Stop */}
-                  <div className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-[#FFF1DC] text-[#E99A32] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                      B
-                    </span>
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-bold text-[#77786F] uppercase tracking-wider block">
-                        Customer Drop-off
-                      </span>
-                      <span className="font-bold text-[#292D26] block">{activeMapDelivery.deliveryAddress}</span>
-                      {activeMapDelivery.landmark && (
-                        <span className="text-[11px] text-[#38754A] font-semibold block mt-0.5">
-                          Landmark: {activeMapDelivery.landmark}
-                        </span>
-                      )}
-                      {activeMapDelivery.deliveryNotes && (
-                        <div className="mt-2 p-2 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-950 text-xs">
-                          <div className="flex items-center gap-1 font-bold text-amber-900 text-[10px] uppercase tracking-wider mb-1">
-                            <span className="material-symbols-outlined text-[13px]">speaker_notes</span>
-                            <span>Customer Delivery Instructions:</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {activeMapDelivery.deliveryNotes.split(/\s*(?:•|\.|\n|;)\s*/).filter(Boolean).map((note, idx) => (
-                              <span key={idx} className="bg-white border border-amber-300 text-amber-900 font-bold px-1.5 py-0.5 rounded text-[10px]">
-                                {note.trim()}
-                              </span>
-                            ))}
+                {(() => {
+                  const modalDist = getDeliveryDistanceAndEta(activeMapDelivery);
+                  return (
+                    <div className="flex flex-col gap-2 bg-[#FFF9F0] p-3 rounded-2xl border border-[#EEE7DC] text-xs">
+                      {/* Live Rider Location (if GPS available) */}
+                      {riderGps && (
+                        <div className="flex items-start gap-2.5 pb-2 border-b border-[#EEE7DC]/70">
+                          <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                            📍
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] font-bold text-[#77786F] uppercase tracking-wider block">
+                              Your Live Location
+                            </span>
+                            <span className="font-bold text-[#292D26] block">
+                              {modalDist.riderToKitchenKm !== null && modalDist.riderToKitchenKm > 0
+                                ? `~${modalDist.riderToKitchenKm} km away from Sagore Kitchen`
+                                : 'At Sagore Kitchen'}
+                            </span>
+                            <span className="text-[11px] text-[#77786F]">
+                              Total Route: ~{modalDist.totalTripKm} km ({modalDist.etaMins} mins estimated travel)
+                            </span>
                           </div>
                         </div>
                       )}
+
+                      {/* Pickup Stop */}
+                      <div className="flex items-start gap-2.5 pb-2 border-b border-[#EEE7DC]/70">
+                        <span className="w-5 h-5 rounded-full bg-[#EAF4ED] text-[#38754A] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                          A
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-[#77786F] uppercase tracking-wider block">
+                              Kitchen Pickup
+                            </span>
+                            {activeMapDelivery.status === 'OUT_FOR_DELIVERY' ? (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                ✓ Picked Up
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                Pending Pickup
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-bold text-[#292D26] block">Janki Rasoi Cloud Kitchen</span>
+                          <span className="text-[11px] text-[#77786F]">Main Bazar, Sagore, Pithampur (454774)</span>
+                        </div>
+                      </div>
+
+                      {/* Drop-off Stop */}
+                      <div className="flex items-start gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-[#FFF1DC] text-[#E99A32] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                          B
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-[#77786F] uppercase tracking-wider block">
+                              Customer Drop-off
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-700">
+                              ~{modalDist.kitchenToCustomerKm} km from kitchen
+                            </span>
+                          </div>
+                          <span className="font-bold text-[#292D26] block">{activeMapDelivery.deliveryAddress}</span>
+                          {activeMapDelivery.landmark && (
+                            <span className="text-[11px] text-[#38754A] font-semibold block mt-0.5">
+                              Landmark: {activeMapDelivery.landmark}
+                            </span>
+                          )}
+                          {activeMapDelivery.deliveryNotes && (
+                            <div className="mt-2 p-2 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-950 text-xs">
+                              <div className="flex items-center gap-1 font-bold text-amber-900 text-[10px] uppercase tracking-wider mb-1">
+                                <span className="material-symbols-outlined text-[13px]">speaker_notes</span>
+                                <span>Customer Delivery Instructions:</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {activeMapDelivery.deliveryNotes.split(/\s*(?:•|\.|\n|;)\s*/).filter(Boolean).map((note, idx) => (
+                                  <span key={idx} className="bg-white border border-amber-300 text-amber-900 font-bold px-1.5 py-0.5 rounded text-[10px]">
+                                    {note.trim()}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Navigation and Call Actions */}
                 <div className="flex flex-col gap-2 pt-1">
-                  <a
-                    href={activeMapDelivery.navigationUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full h-12 rounded-xl bg-[#38754A] hover:bg-[#285C38] active:scale-98 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">directions</span>
-                    <span>Start Turn-by-Turn GPS (Google Maps)</span>
-                  </a>
+                  {activeMapDelivery.status !== 'OUT_FOR_DELIVERY' && activeMapDelivery.status !== 'DISPATCHED' ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${SAGORE_KITCHEN_COORDS.lat},${SAGORE_KITCHEN_COORDS.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="h-11 rounded-xl bg-[#1b4d2e] hover:bg-[#143a23] active:scale-98 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all"
+                      >
+                        <span className="material-symbols-outlined text-[17px]">store</span>
+                        <span>1. GPS to Kitchen</span>
+                      </a>
+                      <a
+                        href={activeMapDelivery.navigationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="h-11 rounded-xl bg-amber-700 hover:bg-amber-800 active:scale-98 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all"
+                      >
+                        <span className="material-symbols-outlined text-[17px]">home_pin</span>
+                        <span>2. GPS to Drop-off</span>
+                      </a>
+                    </div>
+                  ) : (
+                    <a
+                      href={activeMapDelivery.navigationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full h-12 rounded-xl bg-[#38754A] hover:bg-[#285C38] active:scale-98 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">directions</span>
+                      <span>Start Turn-by-Turn GPS to Customer</span>
+                    </a>
+                  )}
 
                   <div className="grid grid-cols-2 gap-2">
                     <a

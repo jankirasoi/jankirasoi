@@ -41,7 +41,7 @@ const nextConfig = {
       ],
     },
   ],
-  allowedDevOrigins: ['10.103.206.252:3001', '10.103.206.252', 'localhost:3001'],
+  allowedDevOrigins: ['10.73.238.252:3001', '10.73.238.252', '10.103.206.252:3001', '10.103.206.252', 'localhost:3001'],
   webpack: (config, { dev }) => {
     if (dev) {
       // Use in-memory webpack cache during dev on Windows to prevent

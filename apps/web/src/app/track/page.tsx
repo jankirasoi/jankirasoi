@@ -433,7 +433,7 @@ function MainTrackingView({
         <div className="w-full shrink-0">
           <LiveDeliveryMap
             driverLocation={
-              order.status === 'OUT_FOR_DELIVERY' && order.rider?.location
+              order.status !== 'DELIVERED' && order.rider?.location
                 ? {
                     latitude: order.rider.location.latitude,
                     longitude: order.rider.location.longitude,

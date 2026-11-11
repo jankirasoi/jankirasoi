@@ -12,6 +12,8 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [selectedDishModal, setSelectedDishModal] = useState<MenuItem | null>(null);
 
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+
   const { items, addItem, updateQty } = useCart();
 
   useEffect(() => {
@@ -55,6 +57,70 @@ export default function HomePage() {
     if (!catalog?.categories) return [];
     return catalog.categories.flatMap((cat) => cat.items);
   }, [catalog]);
+
+  const filterPills = useMemo(() => {
+    const list: Array<{ id: string; label: string; icon?: string; badge?: string }> = [
+      { id: 'all', label: 'All Items', icon: 'restaurant' },
+      { id: 'bestseller', label: 'Bestseller', icon: 'local_fire_department' },
+    ];
+
+    if (catalog?.categories && catalog.categories.length > 0) {
+      catalog.categories.forEach((cat) => {
+        const cleanName = cat.name.split('(')[0].trim();
+        list.push({
+          id: cat.id,
+          label: cleanName,
+          badge: cat.items?.length ? cat.items.length.toString() : undefined,
+        });
+      });
+    }
+
+    list.push({ id: 'under_99', label: 'Under ₹99', icon: 'savings' });
+    list.push({ id: 'ratings_4', label: 'Ratings 4.5+ ★' });
+
+    return list;
+  }, [catalog]);
+
+  const filteredDishes = useMemo(() => {
+    if (!catalog?.categories) return [];
+    const all = catalog.categories.flatMap((cat) => cat.items);
+
+    if (activeFilter === 'all') return all;
+
+    if (activeFilter === 'bestseller') {
+      return all.filter((item) => {
+        const lower = (item.name + ' ' + (item.slug || '') + ' ' + (item.description || '')).toLowerCase();
+        return (
+          lower.includes('thali') ||
+          lower.includes('shahi paneer') ||
+          lower.includes('dal tadka') ||
+          lower.includes('dal fry') ||
+          lower.includes('dal bati') ||
+          lower.includes('poha') ||
+          lower.includes('aloo paratha') ||
+          lower.includes('matar pulao')
+        );
+      });
+    }
+
+    if (activeFilter === 'under_99') {
+      return all.filter((item) => item.basePricePaise <= 9900);
+    }
+
+    if (activeFilter === 'ratings_4') {
+      return all.filter((item) => !item.isSoldOut);
+    }
+
+    const matchedCat = catalog.categories.find((c) => c.id === activeFilter);
+    if (matchedCat) return matchedCat.items;
+
+    return all;
+  }, [catalog, activeFilter]);
+
+  const currentFilterLabel = useMemo(() => {
+    const pill = filterPills.find((p) => p.id === activeFilter);
+    return pill ? pill.label : 'Recommended';
+  }, [filterPills, activeFilter]);
 
   const getItemQuantity = (productId: string) => {
     const cartItem = items.find((i) => i.productId === productId);
@@ -173,39 +239,88 @@ export default function HomePage() {
 
         {/* 3. Quick Filter Pills Ribbon */}
         <div className="mt-5 flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-          <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-emerald-600 bg-emerald-50 text-emerald-800 text-xs font-bold shadow-2xs">
-            <span className="w-3.5 h-3.5 rounded-2xs border border-emerald-600 flex items-center justify-center p-0.5 bg-white">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-            </span>
-            <span>Pure Veg</span>
-          </div>
-          <div className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 shadow-2xs">
-            <span className="text-red-500 text-xs">♥</span>
-            <span>EatRight</span>
-          </div>
-          <div className="shrink-0 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 shadow-2xs">
-            <span>Ratings 4.0+</span>
-          </div>
-          <div className="shrink-0 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 shadow-2xs">
-            <span>Bestseller</span>
-          </div>
+          {filterPills.map((pill) => {
+            const isActive = activeFilter === pill.id;
+            return (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => setActiveFilter(pill.id)}
+                className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs transition-all shadow-2xs cursor-pointer select-none ${
+                  isActive
+                    ? 'border border-[#38754A] bg-[#38754A] text-white font-bold shadow-xs scale-102'
+                    : 'border border-[#EEE7DC] bg-white text-[#292D26] hover:bg-[#F6FBF7] font-semibold'
+                }`}
+              >
+                {pill.icon && (
+                  <span
+                    className={`material-symbols-outlined text-[15px] ${
+                      isActive ? 'text-white' : 'text-[#38754A]'
+                    }`}
+                  >
+                    {pill.icon}
+                  </span>
+                )}
+                <span>{pill.label}</span>
+                {pill.badge && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isActive
+                        ? 'bg-white/25 text-white'
+                        : 'bg-[#EEE7DC] text-[#77786F]'
+                    }`}
+                  >
+                    {pill.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {/* 5. Recommended (Count) Header */}
+        {/* 5. Recommended / Filtered Header */}
         <div className="mt-4 flex items-center justify-between">
-          <div className="flex items-center gap-1 cursor-pointer">
+          <div className="flex items-center gap-2">
             <h2 className="text-base sm:text-lg font-extrabold text-[#292D26] font-headline">
-              Recommended ({recommendedCount > 0 ? recommendedCount : '...'})
+              {activeFilter === 'all'
+                ? `Recommended (${filteredDishes.length})`
+                : `${currentFilterLabel} (${filteredDishes.length})`}
             </h2>
+            {activeFilter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setActiveFilter('all')}
+                className="text-[11px] text-[#7A1E1E] hover:underline font-bold ml-1 cursor-pointer flex items-center gap-0.5"
+              >
+                <span className="material-symbols-outlined text-[13px]">close</span>
+                <span>Reset</span>
+              </button>
+            )}
           </div>
           <Link
             href="/menu"
             className="text-xs text-[#38754A] font-bold hover:underline flex items-center gap-0.5"
           >
-            <span>View All ({recommendedCount})</span>
+            <span>View Full Menu ({allDishes.length})</span>
             <span>&rarr;</span>
           </Link>
         </div>
+
+        {/* Empty state if filter has no dishes */}
+        {!loading && filteredDishes.length === 0 && (
+          <div className="mt-8 p-8 bg-white rounded-2xl border border-[#EEE7DC] text-center flex flex-col items-center">
+            <span className="material-symbols-outlined text-4xl text-[#77786F] mb-2">restaurant_menu</span>
+            <p className="font-bold text-sm text-[#292D26]">No dishes found under &quot;{currentFilterLabel}&quot;</p>
+            <p className="text-xs text-[#77786F] mt-1">Try selecting another category or view all items.</p>
+            <button
+              type="button"
+              onClick={() => setActiveFilter('all')}
+              className="mt-4 px-4 py-2 bg-[#38754A] text-white text-xs font-bold rounded-xl shadow-xs hover:bg-[#285C38]"
+            >
+              Show All Dishes
+            </button>
+          </div>
+        )}
 
         {/* 6. Food Card Grid (Zero mock data, 100% database items) */}
         {loading && allDishes.length === 0 ? (
@@ -234,7 +349,7 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
-            {allDishes.map((dish) => {
+            {filteredDishes.map((dish) => {
               const qty = getItemQuantity(dish.id);
               return (
                 <div
