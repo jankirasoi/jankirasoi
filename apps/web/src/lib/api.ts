@@ -1159,6 +1159,11 @@ export const api = {
               if (data.user.phone) localStorage.setItem('jr_customer_phone', data.user.phone);
               if (data.user.name) localStorage.setItem('jr_customer_name', data.user.name);
               if (data.user.savedAddress) localStorage.setItem('jr_customer_address', JSON.stringify(data.user.savedAddress));
+              // Sync server-persisted address list into localStorage (without overwriting if server is empty)
+              if (Array.isArray(data.user.savedAddresses) && data.user.savedAddresses.length > 0) {
+                localStorage.setItem('jr_saved_addresses', JSON.stringify(data.user.savedAddresses));
+                localStorage.setItem('jr_selected_address', JSON.stringify(data.user.savedAddresses[0]));
+              }
               return data.user;
             } else if (role === 'RIDER' && data.user.role === 'RIDER') {
               localStorage.setItem('jr_rider_profile', JSON.stringify(data.user));
@@ -1189,6 +1194,26 @@ export const api = {
       }
     }
     return null;
+  },
+
+  // 15b. Persist customer saved addresses to the backend
+  async updateSavedAddresses(addresses: any[]): Promise<{ success: boolean }> {
+    if (typeof window === 'undefined') return { success: false };
+    const token = localStorage.getItem('jr_session_token');
+    if (!token) return { success: false };
+    const base = getApiBase();
+    try {
+      const res = await fetch(`${base}/auth/me/addresses`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        body: JSON.stringify({ addresses }),
+      });
+      if (!res.ok) return { success: false };
+      return res.json();
+    } catch {
+      return { success: false };
+    }
   },
 
   // 16. Logout (Role-isolated to prevent customer session clearing on rider actions)

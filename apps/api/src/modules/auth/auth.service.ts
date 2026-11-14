@@ -228,6 +228,7 @@ export class AuthService {
     }
 
     let savedAddress = null;
+    let savedAddresses: any[] = [];
     let recentOrders: any[] = [];
     let riderInfo = null;
     let banDetails: any = null;
@@ -236,6 +237,17 @@ export class AuthService {
       if (!user.isActive) {
         banDetails = await this.getCustomerBanStatus(user.phone);
       }
+
+      // Load full user record to get persisted savedAddresses
+      const fullUser = await this.prisma.user.findUnique({
+        where: { id: user.id },
+        select: { savedAddresses: true },
+      });
+      if (Array.isArray(fullUser?.savedAddresses)) {
+        savedAddresses = fullUser.savedAddresses as any[];
+        savedAddress = savedAddresses[0] || null;
+      }
+
       recentOrders = await this.prisma.order.findMany({
         where: { customerPhone: user.phone },
         orderBy: { createdAt: 'desc' },
@@ -250,7 +262,11 @@ export class AuthService {
           createdAt: true,
         },
       });
-      savedAddress = recentOrders[0]?.deliveryAddress || null;
+
+      // Fall back to last order delivery address if no saved addresses exist
+      if (!savedAddress) {
+        savedAddress = recentOrders[0]?.deliveryAddress || null;
+      }
     } else if (user.role === 'RIDER') {
       const profile = await this.prisma.riderProfile.findUnique({
         where: { userId: user.id },
@@ -271,11 +287,35 @@ export class AuthService {
         penaltyAmountPaise: banDetails?.penaltyAmountPaise || null,
         penaltyAmountRupees: banDetails?.penaltyAmountRupees || null,
         savedAddress,
+        savedAddresses,
         orderCount: recentOrders.length,
         recentOrders,
         riderProfile: riderInfo,
       },
     };
+  }
+
+  async updateCustomerAddresses(token: string, addresses: any[]) {
+    const user = await this.validateSessionToken(token);
+    if (!user) {
+      throw new UnauthorizedException('Session expired or invalid.');
+    }
+    if (user.role !== 'CUSTOMER') {
+      throw new BadRequestException('Only customer accounts can save delivery addresses.');
+    }
+
+    // Keep latest 10 addresses; normalise list
+    const sanitised = addresses
+      .filter((a) => a && typeof a === 'object')
+      .slice(0, 10);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { savedAddresses: sanitised },
+    });
+
+    this.logger.log(`Updated saved addresses for customer ${user.phone} (${sanitised.length} addresses)`);
+    return { success: true, savedAddresses: sanitised };
   }
 
   async getAdminCustomers() {

@@ -362,6 +362,9 @@ export default function LocationMapModal({
         localStorage.setItem('jr_selected_address', JSON.stringify(confirmedLocation));
         setSavedAddresses(updated);
         window.dispatchEvent(new Event('jr_address_changed'));
+
+        // Persist to backend silently (non-blocking) — survives cross-device sessions
+        api.updateSavedAddresses(updated).catch(() => {/* silent — localStorage is source of truth */});
       } catch {}
     }
 

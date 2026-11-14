@@ -54,6 +54,21 @@ export class AuthController {
     }
   }
 
+  @Patch('auth/me/addresses')
+  @ApiOperation({ summary: 'Persist customer saved delivery addresses (up to 10)' })
+  async updateMyAddresses(
+    @Body() body: { addresses: any[] },
+    @Req() req: Request,
+  ) {
+    const headerToken = req.headers.authorization?.replace('Bearer ', '');
+    const cookieToken = req.cookies?.customer_session_token || req.cookies?.session_token;
+    const token = headerToken || cookieToken;
+    if (!token) {
+      return { success: false, message: 'Not authenticated' };
+    }
+    return this.authService.updateCustomerAddresses(token, body.addresses || []);
+  }
+
   @Get('auth/customer/status')
   @ApiOperation({ summary: 'Check customer ban and penalty status' })
   async getCustomerBanStatus(@Query('phone') phone?: string, @Req() req?: Request) {
