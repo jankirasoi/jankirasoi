@@ -186,6 +186,42 @@ export class AuthService {
       }
     }
 
+    // Load full user record with savedAddresses
+    const fullUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { savedAddresses: true },
+    });
+    let savedAddresses: any[] = Array.isArray(fullUser?.savedAddresses) ? (fullUser.savedAddresses as any[]) : [];
+
+    // If dto.address is provided, add/merge it into savedAddresses
+    if (dto.address && (dto.address.flat || dto.address.street)) {
+      const exists = savedAddresses.some(
+        (a: any) =>
+          (a.formattedAddress && a.formattedAddress === (dto.address as any).formattedAddress) ||
+          (a.street === dto.address?.street && a.flat === dto.address?.flat)
+      );
+      if (!exists) {
+        const normalized = {
+          id: `loc-${Date.now()}`,
+          flat: dto.address.flat,
+          street: dto.address.street,
+          landmark: dto.address.landmark || '',
+          pincode: dto.address.pincode || '454774',
+          city: (dto.address as any).city || 'Sagore, Pithampur',
+          lat: (dto.address as any).lat ?? (dto.address as any).latitude ?? 22.6288,
+          lng: (dto.address as any).lng ?? (dto.address as any).longitude ?? 75.5684,
+          latitude: (dto.address as any).latitude ?? (dto.address as any).lat ?? 22.6288,
+          longitude: (dto.address as any).longitude ?? (dto.address as any).lng ?? 75.5684,
+          formattedAddress: (dto.address as any).formattedAddress || `${dto.address.flat}, ${dto.address.street}`,
+        };
+        savedAddresses = [normalized, ...savedAddresses].slice(0, 10);
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { savedAddresses },
+        });
+      }
+    }
+
     // Retrieve previous order delivery address if any
     const recentOrders = await this.prisma.order.findMany({
       where: { customerPhone: cleanPhone },
@@ -202,7 +238,31 @@ export class AuthService {
       },
     });
 
-    const savedAddress = dto.address || recentOrders[0]?.deliveryAddress || null;
+    // Fallback to recent order delivery address if savedAddresses is empty
+    if (savedAddresses.length === 0 && recentOrders[0]?.deliveryAddress) {
+      const recentAddr = recentOrders[0].deliveryAddress as any;
+      const normalized = {
+        id: `loc-${Date.now()}`,
+        flat: recentAddr.flat || '',
+        street: recentAddr.street || '',
+        landmark: recentAddr.landmark || '',
+        pincode: recentAddr.pincode || '454774',
+        city: recentAddr.city || 'Sagore, Pithampur',
+        lat: recentAddr.latitude ?? recentAddr.lat ?? 22.6288,
+        lng: recentAddr.longitude ?? recentAddr.lng ?? 75.5684,
+        latitude: recentAddr.latitude ?? recentAddr.lat ?? 22.6288,
+        longitude: recentAddr.longitude ?? recentAddr.lng ?? 75.5684,
+        formattedAddress: `${recentAddr.flat ? recentAddr.flat + ', ' : ''}${recentAddr.street || ''}`,
+      };
+      savedAddresses = [normalized];
+      // Persist to user record in DB
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { savedAddresses },
+      }).catch(() => {});
+    }
+
+    const savedAddress = savedAddresses[0] || dto.address || recentOrders[0]?.deliveryAddress || null;
     const session = await this.createSession(user.id);
 
     return {
@@ -213,6 +273,7 @@ export class AuthService {
         email: user.email,
         role: user.role,
         savedAddress,
+        savedAddresses,
         orderCount: recentOrders.length,
         recentOrders,
       },

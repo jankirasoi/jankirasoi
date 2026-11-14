@@ -222,23 +222,11 @@ export default function TrackingRoadMap({
         </div>
       )}
 
-      {/* ── Google Watermark (Matching 2nd Image Reference) ── */}
-      <div className="absolute bottom-2.5 left-3.5 z-10 flex items-center gap-1 opacity-80 pointer-events-none">
-        <span className="text-xs font-bold text-slate-600 font-sans tracking-tight">
-          <span className="text-[#4285F4]">G</span>
-          <span className="text-[#EA4335]">o</span>
-          <span className="text-[#FBBC05]">o</span>
-          <span className="text-[#4285F4]">g</span>
-          <span className="text-[#34A853]">l</span>
-          <span className="text-[#EA4335]">e</span>
-        </span>
-      </div>
-
-      {/* ── Floating Map Status Pill ── */}
+      {/* ── Map Status Pill ── */}
       <div className="absolute top-2.5 right-3 z-10">
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-md border border-slate-200 shadow-2xs text-[11px] font-bold text-slate-800">
           <span className="w-2 h-2 rounded-full bg-[#15803d] animate-pulse" />
-          <span>{isOutForDelivery && hasRider ? '1.7 km away' : 'Kitchen Dispatching'}</span>
+          <span>{isOutForDelivery && hasRider ? (riderName ? `${riderName} on the way` : 'Out for delivery') : 'Kitchen Dispatching'}</span>
         </div>
       </div>
     </div>

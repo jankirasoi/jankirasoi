@@ -326,6 +326,16 @@ export default function LocationMapModal({
     }
   };
 
+  // Lock body scroll when modal is active
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen]);
+
   // Distance calculations
   const distanceKm = calculateHaversineDistanceKm(SAGORE_KITCHEN_LAT, SAGORE_KITCHEN_LNG, lat, lng);
   const isWithin5Km = distanceKm <= 5.0;
@@ -349,7 +359,9 @@ export default function LocationMapModal({
       formattedAddress: displayAddress || `${flat ? flat + ', ' : ''}${street}, ${city} - ${pincode}`,
       lat,
       lng,
-    };
+      latitude: lat,
+      longitude: lng,
+    } as any;
 
     // Save to localStorage list of saved addresses
     if (typeof window !== 'undefined') {
@@ -360,8 +372,10 @@ export default function LocationMapModal({
         const updated = [confirmedLocation, ...existing].slice(0, 10);
         localStorage.setItem('jr_saved_addresses', JSON.stringify(updated));
         localStorage.setItem('jr_selected_address', JSON.stringify(confirmedLocation));
+        localStorage.setItem('jr_customer_address', JSON.stringify(confirmedLocation));
         setSavedAddresses(updated);
         window.dispatchEvent(new Event('jr_address_changed'));
+        window.dispatchEvent(new Event('storage'));
 
         // Persist to backend silently (non-blocking) — survives cross-device sessions
         api.updateSavedAddresses(updated).catch(() => {/* silent — localStorage is source of truth */});
@@ -377,7 +391,9 @@ export default function LocationMapModal({
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('jr_selected_address', JSON.stringify(addr));
+        localStorage.setItem('jr_customer_address', JSON.stringify(addr));
         window.dispatchEvent(new Event('jr_address_changed'));
+        window.dispatchEvent(new Event('storage'));
       } catch {}
     }
     onConfirm(addr);

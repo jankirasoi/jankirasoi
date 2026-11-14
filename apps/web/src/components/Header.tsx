@@ -35,7 +35,8 @@ export default function Header() {
     api.getCurrentUser().then((user) => {
       if (user && user.role === 'CUSTOMER') {
         setCurrentUser(user);
-        if (user.savedAddress?.street) {
+        const hasSelected = typeof window !== 'undefined' && localStorage.getItem('jr_selected_address');
+        if (!hasSelected && user.savedAddress?.street) {
           setLocationName(user.savedAddress.street.split(',')[0]);
         }
       } else {
@@ -44,19 +45,20 @@ export default function Header() {
     });
 
     const handleStorage = () => {
+      let activeLabel = '';
       try {
         const stored = localStorage.getItem('jr_selected_address');
         if (stored) {
           const parsed = JSON.parse(stored);
-          const label = parsed.street?.split(',')[0] || parsed.flat || parsed.city;
-          if (label) setLocationName(label);
+          activeLabel = parsed.street?.split(',')[0] || parsed.flat || parsed.city;
+          if (activeLabel) setLocationName(activeLabel);
         }
       } catch {}
 
       api.getCurrentUser().then((user) => {
         if (user && user.role === 'CUSTOMER') {
           setCurrentUser(user);
-          if (user.savedAddress?.street) {
+          if (!activeLabel && user.savedAddress?.street) {
             setLocationName(user.savedAddress.street.split(',')[0]);
           }
         } else {

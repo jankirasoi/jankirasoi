@@ -126,18 +126,18 @@ export class RidersService {
     return {
       deliveries: ordersToDisplay.map(({ order: o, assignmentStatus, assignedAt }) => {
         const addr = (o.deliveryAddress as any) || {};
-        const rawLat = Number(addr.latitude);
-        const rawLng = Number(addr.longitude);
-        const hasValidLocalCoords =
+        const rawLat = Number(addr.latitude ?? addr.lat);
+        const rawLng = Number(addr.longitude ?? addr.lng);
+        const hasValidCoords =
           !isNaN(rawLat) &&
           !isNaN(rawLng) &&
-          rawLat >= 22.0 &&
-          rawLat <= 23.5 &&
-          rawLng >= 75.0 &&
-          rawLng <= 76.5;
+          rawLat >= 8.0 &&
+          rawLat <= 37.5 &&
+          rawLng >= 68.0 &&
+          rawLng <= 97.5;
 
-        const lat = hasValidLocalCoords ? rawLat : 22.6288;
-        const lng = hasValidLocalCoords ? rawLng : 75.5684;
+        const lat = hasValidCoords ? rawLat : 22.6288;
+        const lng = hasValidCoords ? rawLng : 75.5684;
 
         const addressParts = [
           addr.flat,
@@ -149,7 +149,7 @@ export class RidersService {
         ].filter(Boolean);
         const destinationText = addressParts.join(', ');
 
-        const navigationUrl = hasValidLocalCoords
+        const navigationUrl = hasValidCoords
           ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
           : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destinationText)}`;
 

@@ -167,7 +167,13 @@ export default function CustomerAuthModal({
         localStorage.setItem('jr_customer_phone', cleanPhone);
         localStorage.setItem('jr_customer_name', name.trim());
         localStorage.setItem('jr_customer_address', JSON.stringify(addressObj));
+        localStorage.setItem('jr_selected_address', JSON.stringify(addressObj));
+        if (res.user?.savedAddresses) {
+          localStorage.setItem('jr_saved_addresses', JSON.stringify(res.user.savedAddresses));
+        }
         localStorage.setItem('jr_user_profile', JSON.stringify(res.user));
+        window.dispatchEvent(new Event('jr_address_changed'));
+        window.dispatchEvent(new Event('storage'));
       }
       setCurrentUser(res.user);
       setActiveTab('PROFILE');
@@ -225,6 +231,17 @@ export default function CustomerAuthModal({
       };
 
       const res = await api.loginCustomer(currentUser!.phone, name.trim(), addressObj);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('jr_customer_name', name.trim());
+        localStorage.setItem('jr_customer_address', JSON.stringify(addressObj));
+        localStorage.setItem('jr_selected_address', JSON.stringify(addressObj));
+        if (res.user?.savedAddresses) {
+          localStorage.setItem('jr_saved_addresses', JSON.stringify(res.user.savedAddresses));
+        }
+        localStorage.setItem('jr_user_profile', JSON.stringify(res.user));
+        window.dispatchEvent(new Event('jr_address_changed'));
+        window.dispatchEvent(new Event('storage'));
+      }
       setCurrentUser(res.user);
       setIsEditingProfile(false);
       setSuccessMsg('Profile and delivery address updated successfully!');

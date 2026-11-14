@@ -124,46 +124,58 @@ export default function CartPage() {
 
   // Fetch logged in customer and prefill address
   useEffect(() => {
+    // 1. First check local storage for user's actively selected location & coordinates
+    let initialAddr: any = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const selected = localStorage.getItem('jr_selected_address') || localStorage.getItem('jr_customer_address');
+        if (selected) {
+          initialAddr = JSON.parse(selected);
+          if (initialAddr) {
+            if (initialAddr.flat) setFlat(initialAddr.flat);
+            if (initialAddr.street) setStreet(initialAddr.street);
+            if (initialAddr.landmark) setLandmark(initialAddr.landmark);
+            if (initialAddr.pincode) setPincode(initialAddr.pincode);
+            if (initialAddr.city) setDetectedCity(initialAddr.city);
+            const lat = Number(initialAddr.lat ?? initialAddr.latitude);
+            const lng = Number(initialAddr.lng ?? initialAddr.longitude);
+            if (!isNaN(lat) && !isNaN(lng) && lat > 0 && lng > 0) {
+              setCoords({ lat, lng });
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // 2. Fetch logged-in user profile
     api.getCurrentUser().then((user) => {
       if (user && user.role === 'CUSTOMER') {
         setCurrentUser(user);
         if (user.name) setCustomerName(user.name);
         if (user.phone) setCustomerPhone(user.phone);
-        if (user.savedAddress) {
+
+        // If local storage did not have an address, use user's savedAddress
+        if (!initialAddr && user.savedAddress) {
           if (user.savedAddress.flat) setFlat(user.savedAddress.flat);
           if (user.savedAddress.street) setStreet(user.savedAddress.street);
           if (user.savedAddress.landmark) setLandmark(user.savedAddress.landmark);
           if (user.savedAddress.pincode) setPincode(user.savedAddress.pincode);
+          const lat = Number((user.savedAddress as any).lat ?? (user.savedAddress as any).latitude);
+          const lng = Number((user.savedAddress as any).lng ?? (user.savedAddress as any).longitude);
+          if (!isNaN(lat) && !isNaN(lng) && lat > 0 && lng > 0) {
+            setCoords({ lat, lng });
+          }
         }
       } else if (typeof window !== 'undefined') {
-        // Fallback to local storage so user data and chosen location are never lost
         const savedPhone = localStorage.getItem('jr_customer_phone');
         const savedName = localStorage.getItem('jr_customer_name');
-        const savedAddrRaw =
-          localStorage.getItem('jr_customer_address') ||
-          localStorage.getItem('jr_selected_address');
-
-        let addrObj: any = undefined;
-        if (savedAddrRaw) {
-          try {
-            addrObj = JSON.parse(savedAddrRaw);
-            if (addrObj) {
-              if (addrObj.flat) setFlat(addrObj.flat);
-              if (addrObj.street) setStreet(addrObj.street);
-              if (addrObj.landmark) setLandmark(addrObj.landmark);
-              if (addrObj.pincode) setPincode(addrObj.pincode);
-              if (addrObj.city) setDetectedCity(addrObj.city);
-            }
-          } catch {}
-        }
-
         if (savedPhone) {
           const restored: UserProfile = {
             id: 'cust_' + savedPhone,
             name: savedName || 'Customer',
             phone: savedPhone,
             role: 'CUSTOMER',
-            savedAddress: addrObj,
+            savedAddress: initialAddr,
           };
           setCurrentUser(restored);
           setCustomerPhone(savedPhone);
@@ -434,8 +446,16 @@ export default function CartPage() {
           street: street.trim(),
           landmark: landmark.trim() || undefined,
           pincode: pincode.trim(),
-          latitude: coords?.lat,
-          longitude: coords?.lng,
+          latitude:
+            coords?.lat ??
+            (typeof window !== 'undefined'
+              ? Number(JSON.parse(localStorage.getItem('jr_selected_address') || '{}').lat ?? 22.6288)
+              : 22.6288),
+          longitude:
+            coords?.lng ??
+            (typeof window !== 'undefined'
+              ? Number(JSON.parse(localStorage.getItem('jr_selected_address') || '{}').lng ?? 75.5684)
+              : 75.5684),
         },
         deliveryNotes: compiledNotes || undefined,
       };

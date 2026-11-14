@@ -1,40 +1,62 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-import 'leaflet/dist/leaflet.css';
+import React, { useEffect, useRef, useState } from 'react';
+import 'maplibre-gl/dist/maplibre-gl.css';
 
-interface PinpointLeafletMapProps {
+interface PinpointMapProps {
   lat: number;
   lng: number;
   onPositionChange: (lat: number, lng: number) => void;
   height?: string;
 }
 
-// Ola Maps raster tile URL template (uses our API key from env)
 const OLA_MAPS_API_KEY =
   process.env.NEXT_PUBLIC_OLA_MAPS_API_KEY || 'NEKvcR5JMpiuzAisQ3cJXeXhtZpl7HIdVWo0kwfe';
 
-// Ola Maps tile URL — standard XYZ slippy-map tiles
-// Falls back to CartoDB Voyager if the key is unavailable at runtime
-const OLA_TILE_URL = `https://api.olamaps.io/tiles/v1/styles/default-light-standard/static/{z}/{x}/{y}.png?api_key=${OLA_MAPS_API_KEY}`;
-const OLA_TILE_RETINA_URL = `https://api.olamaps.io/tiles/v1/styles/default-light-standard/static/{z}/{x}/{y}@2x.png?api_key=${OLA_MAPS_API_KEY}`;
-const FALLBACK_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const OLA_VECTOR_STYLE = `https://api.olamaps.io/tiles/vector/v1/styles/default-light-standard/style.json?api_key=${OLA_MAPS_API_KEY}`;
+
+// Fallback raster style for MapLibre in case of network or API outage
+const FALLBACK_STYLE: any = {
+  version: 8,
+  sources: {
+    'carto-tiles': {
+      type: 'raster',
+      tiles: [
+        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+      ],
+      tileSize: 256,
+      attribution: '© CARTO © OpenStreetMap',
+    },
+  },
+  layers: [
+    {
+      id: 'carto-layer',
+      type: 'raster',
+      source: 'carto-tiles',
+      minzoom: 0,
+      maxzoom: 20,
+    },
+  ],
+};
 
 export default function PinpointLeafletMap({
   lat,
   lng,
   onPositionChange,
   height = '100%',
-}: PinpointLeafletMapProps) {
+}: PinpointMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const isInternalMoveRef = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !containerRef.current) return;
     let isMounted = true;
 
-    import('leaflet').then((L) => {
+    import('maplibre-gl').then((maplibregl) => {
       if (!isMounted || !containerRef.current) return;
 
       if (mapRef.current) {
@@ -42,46 +64,52 @@ export default function PinpointLeafletMap({
         mapRef.current = null;
       }
 
-      const map = L.map(containerRef.current, {
-        center: [lat, lng],
+      // Initialize MapLibre GL with official Ola Maps Vector Style
+      const map = new maplibregl.Map({
+        container: containerRef.current,
+        style: OLA_VECTOR_STYLE,
+        center: [lng, lat],
         zoom: 16,
-        zoomControl: false,
-        attributionControl: true,
+        attributionControl: false,
       });
+
       mapRef.current = map;
 
-      // Try Ola Maps tiles; fall back to CartoDB Voyager on tile-load error
-      const olaTile = L.tileLayer(OLA_TILE_URL, {
-        maxZoom: 20,
-        attribution: '© <a href="https://olamaps.io">Ola Maps</a>',
-      });
+      // Add compact zoom navigation controls
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
-      let usingFallback = false;
-      olaTile.on('tileerror', () => {
-        if (!usingFallback && mapRef.current) {
-          usingFallback = true;
-          olaTile.remove();
-          L.tileLayer(FALLBACK_TILE_URL, {
-            maxZoom: 19,
-            subdomains: 'abcd',
-            attribution: '© <a href="https://carto.com">CARTO</a>',
-          }).addTo(mapRef.current);
+      // Add attribution
+      map.addControl(
+        new maplibregl.AttributionControl({
+          compact: true,
+          customAttribution: '© <a href="https://olamaps.io" target="_blank" rel="noreferrer">Ola Maps</a>',
+        }),
+        'bottom-left'
+      );
+
+      // Gracefully handle style error by switching to fallback raster style
+      let hasFallenBack = false;
+      map.on('error', (e) => {
+        if (!hasFallenBack && (e.error?.message?.includes('style') || e.error?.message?.includes('404') || e.error?.message?.includes('401'))) {
+          hasFallenBack = true;
+          try {
+            map.setStyle(FALLBACK_STYLE);
+          } catch {}
         }
       });
 
-      olaTile.addTo(map);
+      map.on('movestart', () => {
+        setIsDragging(true);
+      });
 
-      // Zoom Control at bottom-right
-      L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-      // Fire position change whenever user finishes dragging / panning
       map.on('moveend', () => {
+        setIsDragging(false);
         const center = map.getCenter();
         isInternalMoveRef.current = true;
         onPositionChange(center.lat, center.lng);
         setTimeout(() => {
           isInternalMoveRef.current = false;
-        }, 100);
+        }, 150);
       });
     });
 
@@ -95,16 +123,21 @@ export default function PinpointLeafletMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync external lat/lng changes (search result or GPS button)
+  // Sync external coordinate updates (e.g., GPS button or search pick)
   useEffect(() => {
     if (!mapRef.current || isInternalMoveRef.current) return;
     const currentCenter = mapRef.current.getCenter();
-    const threshold = 0.0001; // ~10 m
+    const threshold = 0.0001; // ~10m
     if (
       Math.abs(currentCenter.lat - lat) > threshold ||
       Math.abs(currentCenter.lng - lng) > threshold
     ) {
-      mapRef.current.flyTo([lat, lng], 16, { animate: true, duration: 0.8 });
+      mapRef.current.flyTo({
+        center: [lng, lat],
+        zoom: 16,
+        essential: true,
+        duration: 800,
+      });
     }
   }, [lat, lng]);
 
@@ -113,11 +146,19 @@ export default function PinpointLeafletMap({
       {/* Map Canvas */}
       <div ref={containerRef} className="w-full h-full z-0" />
 
-      {/* Center Fixed Pin Marker — Uber / Swiggy style */}
-      <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center -translate-y-4">
-        <div className="relative flex flex-col items-center">
+      {/* Center Fixed Pin Marker — Swiggy / Uber delivery style */}
+      <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
+        <div
+          className={`relative flex flex-col items-center transition-transform duration-200 ${
+            isDragging ? '-translate-y-6 scale-105' : '-translate-y-4 scale-100'
+          }`}
+        >
           {/* Shadow ripple */}
-          <div className="absolute -bottom-1 w-4 h-2 bg-black/25 rounded-full blur-[1px] animate-pulse" />
+          <div
+            className={`absolute -bottom-1 w-4 h-2 bg-black/30 rounded-full blur-[1px] transition-all duration-200 ${
+              isDragging ? 'scale-75 opacity-40' : 'scale-100 opacity-80'
+            }`}
+          />
           {/* Pin head */}
           <div className="relative w-9 h-9 rounded-full bg-[#E25822] border-2 border-white shadow-xl flex items-center justify-center text-white">
             <span className="material-symbols-outlined text-[20px]">near_me</span>

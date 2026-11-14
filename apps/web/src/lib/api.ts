@@ -1318,6 +1318,7 @@ export interface UserProfile {
     landmark?: string;
     pincode?: string;
   } | null;
+  savedAddresses?: any[];
   orderCount?: number;
   recentOrders?: Array<{
     id: string;
