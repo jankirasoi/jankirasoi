@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     title: "Today's Fresh Menu & Catering | Janki Rasoi Sagore",
     description:
       'Daily freshly prepared pure vegetarian North Indian thalis, homestyle meals, and catering services in Sagore & Pithampur.',
-    url: 'https://jankirasoi.vercel.app/menu',
+    url: 'https://jankirasoi.com/menu',
   },
 };
 

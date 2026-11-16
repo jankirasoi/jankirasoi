@@ -15,7 +15,7 @@ export const viewport: Viewport = {
   themeColor: '#38754A',
 };
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://jankirasoi.vercel.app';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://jankirasoi.com';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
