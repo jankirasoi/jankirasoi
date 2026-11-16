@@ -15,6 +15,9 @@ function LoginContent() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
+  // 2-Step Flow: 'PHONE' first, then 'ADDRESS' only if new customer without address
+  const [step, setStep] = useState<'PHONE' | 'ADDRESS'>('PHONE');
+
   // Form Fields
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
@@ -53,9 +56,10 @@ function LoginContent() {
     setIsMapModalOpen(false);
   };
 
-  const handlePhoneLogin = async (e: React.FormEvent) => {
+  // STEP 1: Phone-only verification & instant auto-login for returning users
+  const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPhone = phone.replace(/\\D/g, '').slice(-10);
+    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
     if (cleanPhone.length !== 10) {
       setError('Please enter a valid 10-digit mobile number.');
       return;
@@ -66,39 +70,72 @@ function LoginContent() {
     setSuccessMsg(null);
 
     try {
-      const savedAddress = flat.trim() || street.trim()
-        ? {
-            flat: flat.trim(),
-            street: street.trim() || 'Sagore Kuti',
-            landmark: landmark.trim() || undefined,
-            pincode: pincode.trim() || '454774',
-            city: 'Sagore, Pithampur',
+      // 1. Authenticate phone number with backend
+      const res = await api.loginCustomer(cleanPhone);
+
+      // Check if user has an existing saved address on account
+      const userAddr =
+        res.user.savedAddress ||
+        (res.user.savedAddresses && res.user.savedAddresses.length > 0
+          ? res.user.savedAddresses[0]
+          : null);
+      let hasAddress = Boolean(userAddr && (userAddr.flat || userAddr.street));
+
+      // Also check local storage for this device/phone
+      let localAddr: any = null;
+      if (!hasAddress && typeof window !== 'undefined') {
+        try {
+          const stored =
+            localStorage.getItem('jr_customer_address') ||
+            localStorage.getItem('jr_selected_address');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed.flat || parsed.street) {
+              localAddr = parsed;
+              hasAddress = true;
+            }
           }
-        : undefined;
-
-      const res = await api.loginCustomer(
-        cleanPhone,
-        name.trim() || undefined,
-        savedAddress,
-      );
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('jr_session_token', res.sessionToken);
-        localStorage.setItem('jr_user_profile', JSON.stringify(res.user));
-        localStorage.setItem('jr_customer_phone', res.user.phone);
-        if (res.user.name) localStorage.setItem('jr_customer_name', res.user.name);
-        if (savedAddress) {
-          localStorage.setItem('jr_customer_address', JSON.stringify(savedAddress));
-          localStorage.setItem('jr_selected_address', JSON.stringify(savedAddress));
-        }
-        window.dispatchEvent(new Event('storage'));
-        window.dispatchEvent(new Event('jr_address_changed'));
+        } catch {}
       }
 
-      setSuccessMsg('Signed in successfully! Redirecting...');
-      setTimeout(() => {
-        router.push(redirectUrl);
-      }, 700);
+      if (hasAddress) {
+        // RETURNING USER: Address already exists -> Log in immediately!
+        const chosenAddr = userAddr || localAddr;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('jr_session_token', res.sessionToken);
+          localStorage.setItem('jr_user_profile', JSON.stringify(res.user));
+          localStorage.setItem('jr_customer_phone', res.user.phone);
+          if (res.user.name) localStorage.setItem('jr_customer_name', res.user.name);
+          if (chosenAddr) {
+            localStorage.setItem('jr_customer_address', JSON.stringify(chosenAddr));
+            localStorage.setItem('jr_selected_address', JSON.stringify(chosenAddr));
+          }
+          window.dispatchEvent(new Event('storage'));
+          window.dispatchEvent(new Event('jr_address_changed'));
+          window.dispatchEvent(new Event('jr_auth_changed'));
+        }
+
+        const displayName =
+          res.user.name && !res.user.name.startsWith('Customer ')
+            ? `, ${res.user.name}`
+            : '';
+        setSuccessMsg(`Welcome back${displayName}! Logging you in...`);
+
+        setTimeout(() => {
+          router.push(redirectUrl);
+        }, 500);
+      } else {
+        // NEW USER (or no address on file): Proceed to Step 2 to enter address
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('jr_session_token', res.sessionToken);
+          localStorage.setItem('jr_customer_phone', cleanPhone);
+        }
+        if (res.user.name && !res.user.name.startsWith('Customer ')) {
+          setName(res.user.name);
+        }
+        setStep('ADDRESS');
+        setSuccessMsg('Mobile verified! Please provide your delivery address.');
+      }
     } catch (err: any) {
       if (
         err.message?.toLowerCase().includes('restricted') ||
@@ -116,13 +153,79 @@ function LoginContent() {
     }
   };
 
+  // STEP 2: Address submission for new customers
+  const handleAddressSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+
+    if (!flat.trim() || !street.trim()) {
+      setError('Please provide your Flat/House No. and Street/Area.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      const savedAddress = {
+        flat: flat.trim(),
+        street: street.trim(),
+        landmark: landmark.trim() || undefined,
+        pincode: pincode.trim() || '454774',
+        city: 'Sagore, Pithampur',
+      };
+
+      const res = await api.loginCustomer(
+        cleanPhone,
+        name.trim() || undefined,
+        savedAddress,
+      );
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('jr_session_token', res.sessionToken);
+        localStorage.setItem('jr_user_profile', JSON.stringify(res.user));
+        localStorage.setItem('jr_customer_phone', res.user.phone);
+        if (res.user.name) localStorage.setItem('jr_customer_name', res.user.name);
+        localStorage.setItem('jr_customer_address', JSON.stringify(savedAddress));
+        localStorage.setItem('jr_selected_address', JSON.stringify(savedAddress));
+        window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new Event('jr_address_changed'));
+        window.dispatchEvent(new Event('jr_auth_changed'));
+      }
+
+      setSuccessMsg('Account setup complete! Redirecting...');
+      setTimeout(() => {
+        router.push(redirectUrl);
+      }, 500);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save address. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     setLoading(true);
     try {
       await api.logout('CUSTOMER');
       setCurrentUser(null);
+      setStep('PHONE');
+      setPhone('');
+      setName('');
+      setFlat('');
+      setStreet('');
+      setLandmark('');
       if (typeof window !== 'undefined') {
+        localStorage.removeItem('jr_customer_phone');
+        localStorage.removeItem('jr_customer_name');
+        localStorage.removeItem('jr_customer_address');
+        localStorage.removeItem('jr_selected_address');
+        localStorage.removeItem('jr_session_token');
+        localStorage.removeItem('jr_user_profile');
         window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new Event('jr_address_changed'));
+        window.dispatchEvent(new Event('jr_auth_changed'));
       }
     } finally {
       setLoading(false);
@@ -218,8 +321,8 @@ function LoginContent() {
               </button>
             </div>
           </div>
-        ) : (
-          /* Phone-first Sign In Form */
+        ) : step === 'PHONE' ? (
+          /* STEP 1: Phone-only Sign In Form */
           <div className="bg-white rounded-3xl border border-[#EEE7DC] p-6 sm:p-8 shadow-xs flex flex-col gap-5">
             {/* Header / Intro */}
             <div className="text-center">
@@ -229,8 +332,8 @@ function LoginContent() {
               <h1 className="font-headline font-black text-2xl text-[#292D26] tracking-tight">
                 Customer Sign In
               </h1>
-              <p className="text-xs text-[#77786F] mt-1">
-                Enter your mobile number to order fresh meals &amp; save your delivery address.
+              <p className="text-xs text-[#77786F] mt-1.5 leading-relaxed">
+                Enter your mobile number to sign in or get started. Existing users will be logged in automatically!
               </p>
             </div>
 
@@ -248,7 +351,7 @@ function LoginContent() {
               </div>
             )}
 
-            <form onSubmit={handlePhoneLogin} className="space-y-4">
+            <form onSubmit={handlePhoneSubmit} className="space-y-4">
               {/* Phone Input */}
               <div>
                 <label className="block text-xs font-bold text-[#292D26] uppercase tracking-wider mb-1.5">
@@ -262,21 +365,96 @@ function LoginContent() {
                     type="tel"
                     required
                     maxLength={10}
+                    autoFocus
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\\D/g, ''))}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                     placeholder="9876543210"
                     className="w-full px-3 py-3 text-sm font-semibold bg-transparent outline-none placeholder-[#77786F]"
                   />
                 </div>
               </div>
 
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading || phone.replace(/\D/g, '').length < 10}
+                className="w-full py-3.5 bg-[#38754A] hover:bg-[#285C38] active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 mt-4 cursor-pointer"
+              >
+                {loading ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>Continue</span>
+                    <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        ) : (
+          /* STEP 2: Address Setup for New Users */
+          <div className="bg-white rounded-3xl border border-[#EEE7DC] p-6 sm:p-8 shadow-xs flex flex-col gap-5 animate-in fade-in duration-200">
+            {/* Header */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#EAF4ED] text-[#38754A] border border-[#38754A]/20">
+                  NEW CUSTOMER SETUP
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('PHONE');
+                    setError(null);
+                    setSuccessMsg(null);
+                  }}
+                  className="text-xs font-bold text-[#38754A] hover:underline flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[14px]">edit</span>
+                  <span>Change number</span>
+                </button>
+              </div>
+              <h1 className="font-headline font-black text-xl text-[#292D26] tracking-tight">
+                Delivery Address
+              </h1>
+              <p className="text-xs text-[#77786F] mt-1 leading-relaxed">
+                Enter your name and delivery address so our riders can deliver your meals warm &amp; fresh.
+              </p>
+            </div>
+
+            {/* Verified Phone Chip */}
+            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#FFF9F0] border border-[#EEE7DC] text-xs">
+              <span className="text-[#77786F]">Signing in as:</span>
+              <span className="font-bold text-[#292D26] flex items-center gap-1">
+                <span className="material-symbols-outlined text-[16px] text-[#38754A]">check_circle</span>
+                <span>+91 {phone}</span>
+              </span>
+            </div>
+
+            {/* Error / Success Alerts */}
+            {error && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] shrink-0">error</span>
+                <span>{error}</span>
+              </div>
+            )}
+            {successMsg && (
+              <div className="p-3 bg-[#EAF4ED] border border-[#38754A]/30 text-[#38754A] text-xs rounded-xl flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] shrink-0">check_circle</span>
+                <span>{successMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAddressSubmit} className="space-y-4">
               {/* Full Name Input */}
               <div>
                 <label className="block text-xs font-bold text-[#292D26] uppercase tracking-wider mb-1.5">
-                  Your Full Name
+                  Your Full Name *
                 </label>
                 <input
                   type="text"
+                  required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Ramesh Sharma"
@@ -288,12 +466,12 @@ function LoginContent() {
               <div className="pt-2 border-t border-slate-100 flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[#38754A] uppercase tracking-wider">
-                    Delivery Address
+                    Delivery Location
                   </span>
                   <button
                     type="button"
                     onClick={() => setIsMapModalOpen(true)}
-                    className="text-xs font-bold text-[#E25822] hover:underline flex items-center gap-1"
+                    className="text-xs font-bold text-[#E25822] hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[14px]">map</span>
                     <span>Locate on Map</span>
@@ -303,9 +481,10 @@ function LoginContent() {
                 <div>
                   <input
                     type="text"
+                    required
                     value={flat}
                     onChange={(e) => setFlat(e.target.value)}
-                    placeholder="Flat / House / Room No."
+                    placeholder="Flat / House / Room No. *"
                     className="w-full px-3.5 py-2.5 bg-[#FFF9F0] border border-[#EEE7DC] rounded-xl text-xs font-semibold text-[#292D26] placeholder-[#77786F] focus:border-[#38754A] focus:bg-white outline-none"
                   />
                 </div>
@@ -313,9 +492,10 @@ function LoginContent() {
                 <div>
                   <input
                     type="text"
+                    required
                     value={street}
                     onChange={(e) => setStreet(e.target.value)}
-                    placeholder="Street / Locality (e.g. Sagore Kuti, Pithampur)"
+                    placeholder="Street / Locality (e.g. Sagore Kuti, Pithampur) *"
                     className="w-full px-3.5 py-2.5 bg-[#FFF9F0] border border-[#EEE7DC] rounded-xl text-xs font-semibold text-[#292D26] placeholder-[#77786F] focus:border-[#38754A] focus:bg-white outline-none"
                   />
                 </div>
@@ -325,13 +505,14 @@ function LoginContent() {
                     type="text"
                     value={landmark}
                     onChange={(e) => setLandmark(e.target.value)}
-                    placeholder="Landmark (Near School)"
+                    placeholder="Landmark (Optional)"
                     className="w-full px-3 py-2 bg-[#FFF9F0] border border-[#EEE7DC] rounded-xl text-xs font-semibold text-[#292D26] placeholder-[#77786F] focus:border-[#38754A] focus:bg-white outline-none"
                   />
                   <input
                     type="text"
+                    required
                     value={pincode}
-                    onChange={(e) => setPincode(e.target.value.replace(/\\D/g, '').slice(0, 6))}
+                    onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="Pincode (454774)"
                     className="w-full px-3 py-2 bg-[#FFF9F0] border border-[#EEE7DC] rounded-xl text-xs font-semibold text-[#292D26] placeholder-[#77786F] focus:border-[#38754A] focus:bg-white outline-none"
                   />
@@ -341,21 +522,19 @@ function LoginContent() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full py-3.5 bg-[#38754A] hover:bg-[#285C38] active:scale-98 text-white font-bold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 mt-4"
+                disabled={loading || !flat.trim() || !street.trim()}
+                className="w-full py-3.5 bg-[#38754A] hover:bg-[#285C38] active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 mt-4 cursor-pointer"
               >
                 {loading ? (
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <span>Sign In &amp; Continue</span>
+                    <span>Save &amp; Start Ordering</span>
                     <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
                   </>
                 )}
               </button>
             </form>
-
-
           </div>
         )}
       </main>
