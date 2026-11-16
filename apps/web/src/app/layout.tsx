@@ -90,6 +90,9 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
+  verification: {
+    google: 'YaZ4S2I5I3-WgqvlPtgTKhLKSm3P2dXQhZsXmcOxyBw',
+  },
   manifest: '/manifest.json',
   icons: {
     icon: '/favicon.svg',
@@ -215,6 +218,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <meta
+          name="google-site-verification"
+          content="YaZ4S2I5I3-WgqvlPtgTKhLKSm3P2dXQhZsXmcOxyBw"
+        />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
