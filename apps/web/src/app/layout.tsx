@@ -20,18 +20,21 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://jankirasoi.com';
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'Janki Rasoi | Best Kitchen Service & Catering Service in Sagore',
-    template: '%s | Janki Rasoi Sagore',
+    default: 'Janki Rasoi™ | Official Website - Best Kitchen & Catering in Sagore',
+    template: '%s | Janki Rasoi',
   },
   description:
-    'Janki Rasoi Sagore - Best kitchen service & catering service in Sagore and Pithampur. Order pure vegetarian homestyle thalis, daily tiffins, and event catering with fresh ingredients and express delivery.',
+    'Official website of Janki Rasoi Sagore. Order 100% pure vegetarian homestyle thalis, daily tiffins, and professional catering services in Sagore & Pithampur. Fresh, hygienic, and fast delivery.',
   keywords: [
     'janki rasoi',
+    'janki rasoi official website',
+    'jankirasoi',
     'janki rasoi sagore',
     'sagore catreen sevice',
     'sagore catering service',
     'best kichen service sagore',
     'best kitchen service sagore',
+    'janki rasoi menu',
     'caterers in sagore',
     'sagore tiffin service',
     'sagore food delivery',
@@ -108,67 +111,100 @@ export const metadata: Metadata = {
 
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': ['Restaurant', 'CateringService', 'FoodEstablishment'],
-  '@id': `${siteUrl}/#restaurant`,
-  name: 'Janki Rasoi',
-  alternateName: [
-    'Janki Rasoi Sagore',
-    'Sagore Catering Service',
-    'Best Kitchen Service Sagore',
-    'Janki Rasoi Pithampur',
-    'Sagore Catreen Sevice',
-  ],
-  url: siteUrl,
-  logo: `${siteUrl}/images/logo-avatar.png`,
-  image: `${siteUrl}/images/hero-thali.jpg`,
-  description:
-    'Janki Rasoi is the best kitchen service and catering service in Sagore & Pithampur. We deliver 100% pure vegetarian homestyle thalis, daily office tiffins, and handle full catering for parties, weddings, and corporate events.',
-  servesCuisine: ['North Indian', 'Pure Vegetarian', 'Thali', 'Home Cooked'],
-  priceRange: '₹₹',
-  telephone: '+91 98765 43210',
-  email: 'care@jankirasoi.com',
-  address: {
-    '@type': 'PostalAddress',
-    streetAddress: 'Sagore - Pithampur Road, near Sagore Police Station',
-    addressLocality: 'Sagore, Pithampur',
-    addressRegion: 'Madhya Pradesh',
-    postalCode: '454774',
-    addressCountry: 'IN',
-  },
-  geo: {
-    '@type': 'GeoCoordinates',
-    latitude: 22.6186,
-    longitude: 75.6429,
-  },
-  openingHoursSpecification: [
+  '@graph': [
     {
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-      opens: '11:00',
-      closes: '23:00',
-    },
-  ],
-  hasMenu: `${siteUrl}/menu`,
-  acceptsReservations: 'True',
-  areaServed: [
-    { '@type': 'City', name: 'Sagore' },
-    { '@type': 'City', name: 'Pithampur' },
-    { '@type': 'AdministrativeArea', name: 'Dhar' },
-    { '@type': 'AdministrativeArea', name: 'Indore' },
-  ],
-  potentialAction: {
-    '@type': 'OrderAction',
-    target: {
-      '@type': 'EntryPoint',
-      urlTemplate: `${siteUrl}/menu`,
+      '@type': 'WebSite',
+      '@id': `${siteUrl}/#website`,
+      url: siteUrl,
+      name: 'Janki Rasoi',
+      alternateName: ['Janki Rasoi Sagore', 'JankiRasoi', 'jankirasoi.com'],
+      description: 'Official Website of Janki Rasoi - Pure Veg Kitchen & Catering Service',
+      publisher: { '@id': `${siteUrl}/#organization` },
       inLanguage: 'en-IN',
-      actionPlatform: [
-        'http://schema.org/DesktopWebPlatform',
-        'http://schema.org/MobileWebPlatform',
-      ],
     },
-    deliveryMethod: 'http://purl.org/goodrelations/v1#DeliveryModeOwnFleet',
-  },
+    {
+      '@type': 'Organization',
+      '@id': `${siteUrl}/#organization`,
+      name: 'Janki Rasoi',
+      legalName: 'Janki Rasoi',
+      url: siteUrl,
+      logo: `${siteUrl}/images/logo-avatar.png`,
+      sameAs: [
+        'https://jankirasoi.com',
+      ],
+      contactPoint: {
+        '@type': 'ContactPoint',
+        telephone: '+91-9876543210',
+        contactType: 'customer service',
+        areaServed: 'IN',
+        availableLanguage: ['Hindi', 'English'],
+      },
+    },
+    {
+      '@type': ['Restaurant', 'CateringService', 'FoodEstablishment'],
+      '@id': `${siteUrl}/#restaurant`,
+      name: 'Janki Rasoi',
+      alternateName: [
+        'Janki Rasoi Sagore',
+        'Sagore Catering Service',
+        'Best Kitchen Service Sagore',
+        'Janki Rasoi Pithampur',
+        'Sagore Catreen Sevice',
+      ],
+      url: siteUrl,
+      logo: `${siteUrl}/images/logo-avatar.png`,
+      image: `${siteUrl}/images/hero-thali.jpg`,
+      description:
+        'Janki Rasoi is the premier pure vegetarian kitchen and catering service in Sagore & Pithampur. We deliver 100% pure vegetarian homestyle thalis, daily office tiffins, and handle full catering for parties, weddings, and corporate events.',
+      servesCuisine: ['North Indian', 'Pure Vegetarian', 'Thali', 'Home Cooked'],
+      priceRange: '₹₹',
+      telephone: '+91 98765 43210',
+      email: 'care@jankirasoi.com',
+      parentOrganization: { '@id': `${siteUrl}/#organization` },
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: 'Sagore - Pithampur Road, near Sagore Police Station',
+        addressLocality: 'Sagore, Pithampur',
+        addressRegion: 'Madhya Pradesh',
+        postalCode: '454774',
+        addressCountry: 'IN',
+      },
+      geo: {
+        '@type': 'GeoCoordinates',
+        latitude: 22.6186,
+        longitude: 75.6429,
+      },
+      openingHoursSpecification: [
+        {
+          '@type': 'OpeningHoursSpecification',
+          dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+          opens: '11:00',
+          closes: '23:00',
+        },
+      ],
+      hasMenu: `${siteUrl}/menu`,
+      acceptsReservations: 'True',
+      areaServed: [
+        { '@type': 'City', name: 'Sagore' },
+        { '@type': 'City', name: 'Pithampur' },
+        { '@type': 'AdministrativeArea', name: 'Dhar' },
+        { '@type': 'AdministrativeArea', name: 'Indore' },
+      ],
+      potentialAction: {
+        '@type': 'OrderAction',
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: `${siteUrl}/menu`,
+          inLanguage: 'en-IN',
+          actionPlatform: [
+            'http://schema.org/DesktopWebPlatform',
+            'http://schema.org/MobileWebPlatform',
+          ],
+        },
+        deliveryMethod: 'http://purl.org/goodrelations/v1#DeliveryModeOwnFleet',
+      },
+    },
+  ],
 };
 
 export default function RootLayout({

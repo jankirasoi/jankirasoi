@@ -228,6 +228,7 @@ export default function HomePage() {
                 </span>
               </div>
               <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white leading-tight drop-shadow-sm font-headline">
+                <span className="block text-emerald-300 text-lg sm:text-2xl font-bold mb-1">Janki Rasoi</span>
                 Ghar Jaisa Khana, Har Din!
               </h1>
               <p className="hidden sm:block text-xs sm:text-sm text-white/90 font-medium mt-1 drop-shadow-xs max-w-xl">

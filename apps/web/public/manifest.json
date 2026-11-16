@@ -1,13 +1,13 @@
 {
-  "name": "Janki Rasoi Delivery Partner",
-  "short_name": "JR Rider",
-  "description": "Janki Rasoi Delivery Partner App for live orders, navigation, and PIN verification.",
-  "start_url": "/rider",
-  "scope": "/rider",
+  "name": "Janki Rasoi - Pure Veg Kitchen & Catering",
+  "short_name": "Janki Rasoi",
+  "description": "Official app of Janki Rasoi - Pure Vegetarian Homestyle Meals and Catering Service in Sagore & Pithampur.",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#FDF8F5",
-  "theme_color": "#C15A10",
+  "background_color": "#FFF9F0",
+  "theme_color": "#38754A",
   "icons": [
     {
       "src": "/favicon.svg",
