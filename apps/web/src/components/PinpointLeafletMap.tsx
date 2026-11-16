@@ -15,6 +15,31 @@ const OLA_MAPS_API_KEY =
 
 const OLA_VECTOR_STYLE = `https://api.olamaps.io/tiles/vector/v1/styles/default-light-standard/style.json?api_key=${OLA_MAPS_API_KEY}`;
 
+// High-Resolution Satellite Style (ESRI World Imagery - HD satellite views)
+const SATELLITE_STYLE: any = {
+  version: 8,
+  sources: {
+    'esri-satellite': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      attribution: '© Esri, Maxar, Earthstar Geographics',
+      maxzoom: 19,
+    },
+  },
+  layers: [
+    {
+      id: 'esri-satellite-layer',
+      type: 'raster',
+      source: 'esri-satellite',
+      minzoom: 0,
+      maxzoom: 19,
+    },
+  ],
+};
+
 // Clean OpenStreetMap fallback style in case of network disconnect (100% free, zero watermark)
 const FALLBACK_STYLE: any = {
   version: 8,
@@ -49,6 +74,7 @@ export default function PinpointLeafletMap({
   const mapRef = useRef<any>(null);
   const isInternalMoveRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [mapMode, setMapMode] = useState<'streets' | 'satellite'>('streets');
 
   useEffect(() => {
     if (typeof window === 'undefined' || !containerRef.current) return;
@@ -152,10 +178,53 @@ export default function PinpointLeafletMap({
     }
   }, [lat, lng]);
 
+  // Toggle between Ola Streets Vector Style and ESRI HD Satellite Style
+  const toggleMapMode = (newMode: 'streets' | 'satellite') => {
+    if (!mapRef.current || newMode === mapMode) return;
+    setMapMode(newMode);
+    try {
+      if (newMode === 'satellite') {
+        mapRef.current.setStyle(SATELLITE_STYLE);
+      } else {
+        mapRef.current.setStyle(OLA_VECTOR_STYLE);
+      }
+    } catch (e) {
+      console.warn('Could not switch map style:', e);
+    }
+  };
+
   return (
     <div className="relative w-full overflow-hidden" style={{ height }}>
       {/* Map Canvas */}
       <div ref={containerRef} className="w-full h-full z-0" />
+
+      {/* Satellite / Streets Mode Switcher Toggle Pill (Bottom-left) */}
+      <div className="absolute bottom-3 left-3 z-10 flex items-center bg-white/95 backdrop-blur-md rounded-full p-1 shadow-md border border-slate-200/90 text-[11px] font-bold pointer-events-auto">
+        <button
+          type="button"
+          onClick={() => toggleMapMode('streets')}
+          className={`px-2.5 py-1 rounded-full transition-all flex items-center gap-1 cursor-pointer ${
+            mapMode === 'streets'
+              ? 'bg-[#E25822] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[14px]">map</span>
+          <span>Streets</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleMapMode('satellite')}
+          className={`px-2.5 py-1 rounded-full transition-all flex items-center gap-1 cursor-pointer ${
+            mapMode === 'satellite'
+              ? 'bg-[#E25822] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[14px]">satellite_alt</span>
+          <span>Satellite</span>
+        </button>
+      </div>
 
       {/* Center Fixed Pin Marker — Swiggy / Uber delivery style */}
       <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">

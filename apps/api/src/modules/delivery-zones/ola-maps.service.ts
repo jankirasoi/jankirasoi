@@ -230,30 +230,75 @@ export class OlaMapsService {
 
         if (res.ok) {
           const json = await res.json();
-          const predictions = (json.predictions || []).map((p: any) => {
+          let predictions = (json.predictions || []).map((p: any) => {
             const loc = p.geometry?.location;
             const main = p.structured_formatting?.main_text || p.name || p.description;
             const secondary = p.structured_formatting?.secondary_text || '';
             const pinMatch = (p.description || '').match(/\b[1-9][0-9]{5}\b/);
+            const latVal = loc ? Number(loc.lat) : null;
+            const lngVal = loc ? Number(loc.lng) : null;
+
+            // Distance in meters from Ola Maps or calculated Haversine
+            let distMeters = typeof p.distance_meters === 'number' ? p.distance_meters : null;
+            if (distMeters === null && latVal !== null && lngVal !== null) {
+              const dLat = ((latVal - biasLat) * Math.PI) / 180;
+              const dLon = ((lngVal - biasLng) * Math.PI) / 180;
+              const a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos((biasLat * Math.PI) / 180) * Math.cos((latVal * Math.PI) / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              distMeters = Math.round(6371000 * c);
+            }
+
             return {
               placeId: p.place_id || `ola-${Math.random()}`,
               description: p.description || main,
               mainText: main,
               secondaryText: secondary,
-              lat: loc ? Number(loc.lat) : null,
-              lng: loc ? Number(loc.lng) : null,
+              lat: latVal,
+              lng: lngVal,
+              distanceMeters: distMeters,
               pincode: pinMatch ? pinMatch[0] : null,
               city: secondary.includes('Indore') ? 'Indore' : secondary.includes('Dhar') ? 'Dhar' : 'Sagore, Pithampur',
-            } as PlacePrediction;
+            } as PlacePrediction & { distanceMeters?: number | null };
           });
 
-          if (predictions.length > 0) {
+          // Sort predictions by distance ascending so local results are always top
+          predictions.sort((a: any, b: any) => {
+            const dA = a.distanceMeters ?? 9999999;
+            const dB = b.distanceMeters ?? 9999999;
+            return dA - dB;
+          });
+
+          // Prepend any matching local Sagore/Pithampur presets
+          const queryLower = cleanQuery.toLowerCase();
+          const localPresetMatches = SAGORE_PRESETS_DATA.filter(
+            (p) =>
+              p.mainText.toLowerCase().includes(queryLower) ||
+              p.secondaryText.toLowerCase().includes(queryLower) ||
+              p.description.toLowerCase().includes(queryLower),
+          );
+
+          // Merge presets and deduplicate
+          const combined = [...localPresetMatches, ...predictions];
+          const seen = new Set<string>();
+          const deduped: PlacePrediction[] = [];
+          for (const item of combined) {
+            const key = `${item.mainText.toLowerCase()}_${item.lat?.toFixed(3)}_${item.lng?.toFixed(3)}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              deduped.push(item);
+            }
+          }
+
+          if (deduped.length > 0) {
             // Cache for 1 hour
             this.autocompleteCache.set(cacheKey, {
-              data: predictions,
+              data: deduped,
               expiresAt: Date.now() + 3600_000,
             });
-            return predictions;
+            return deduped;
           }
         } else {
           const errText = await res.text().catch(() => '');

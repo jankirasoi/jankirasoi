@@ -220,8 +220,10 @@ export default function LocationMapModal({
 
   // Select place from search or preset and switch to MAP view
   const selectLocation = (newLat: number, newLng: number, fullName: string, pin = '454774') => {
-    setLat(newLat);
-    setLng(newLng);
+    const validLat = typeof newLat === 'number' && !isNaN(newLat) ? newLat : SAGORE_KITCHEN_LAT;
+    const validLng = typeof newLng === 'number' && !isNaN(newLng) ? newLng : SAGORE_KITCHEN_LNG;
+    setLat(validLat);
+    setLng(validLng);
     setDisplayAddress(fullName);
     const primaryName = fullName.split(',')[0] || fullName;
     setAreaTitle(primaryName);
@@ -238,18 +240,23 @@ export default function LocationMapModal({
     executeGeolocation(true, true);
   };
 
-  // Perform geolocation with resilient network fallback and 5-minute caching
+  // Perform geolocation with resilient network fallback and instant map switch
   const executeGeolocation = (highAccuracy: boolean, persistPermission: boolean) => {
     setShowPermissionDialog(false);
     setIsGpsLoading(true);
 
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setIsGpsLoading(false);
-      selectLocation(22.6288, 75.5684, 'Sagore Main Market, Pithampur, MP 454774', '454774');
+      selectLocation(SAGORE_KITCHEN_LAT, SAGORE_KITCHEN_LNG, 'Sagore Main Market, Pithampur, MP 454774', '454774');
       return;
     }
 
-    const onGeoSuccess = async (pos: GeolocationPosition) => {
+    let hasHandledSuccess = false;
+
+    const onGeoSuccess = (pos: GeolocationPosition) => {
+      if (hasHandledSuccess) return;
+      hasHandledSuccess = true;
+
       if (persistPermission && typeof window !== 'undefined') {
         try {
           localStorage.setItem('jr_location_perm', 'granted');
@@ -261,41 +268,41 @@ export default function LocationMapModal({
       setLat(userLat);
       setLng(userLng);
 
-      try {
-        const rev = await api.reverseGeocode(userLat, userLng);
-        if (rev) {
-          const detectedArea = rev.suburb || rev.name || 'Sagore Main Area';
-          const detectedCity = rev.city || 'Sagore, Pithampur';
-          setAreaTitle(detectedArea);
-          setDisplayAddress(rev.formattedAddress || `${detectedArea}, ${detectedCity} ${rev.pincode || '454774'}`);
-          setStreet(detectedArea);
-          setPincode(rev.pincode || '454774');
-          setCity(detectedCity);
-        } else {
-          throw new Error('Reverse geocode failed');
-        }
-      } catch {
-        setAreaTitle('Current GPS Location');
-        setDisplayAddress('Near Current GPS Location, Sagore, Pithampur (454774)');
-        setStreet('Near Current Location, Sagore');
-        setPincode('454774');
-      } finally {
-        setIsGpsLoading(false);
-        setViewMode('MAP_PINPOINT');
-      }
+      // INSTANT UI RESPONSE: switch to map pinpoint immediately without waiting for reverse geocode!
+      setIsGpsLoading(false);
+      setViewMode('MAP_PINPOINT');
+
+      // Asynchronously reverse geocode in background to update street & city details
+      api.reverseGeocode(userLat, userLng)
+        .then((rev) => {
+          if (rev) {
+            const detectedArea = rev.suburb || rev.name || 'Current Location';
+            const detectedCity = rev.city || 'Sagore, Pithampur';
+            setAreaTitle(detectedArea);
+            setDisplayAddress(rev.formattedAddress || `${detectedArea}, ${detectedCity} ${rev.pincode || '454774'}`);
+            setStreet(detectedArea);
+            if (rev.pincode) setPincode(rev.pincode);
+            if (rev.city) setCity(detectedCity);
+          }
+        })
+        .catch(() => {
+          setAreaTitle('Current GPS Location');
+          setDisplayAddress(`Pinpoint Location (${userLat.toFixed(4)}, ${userLng.toFixed(4)})`);
+        });
     };
 
-
     const onGeoError = (err: GeolocationPositionError) => {
-      // If high accuracy timed out, retry with standard cell/network positioning
+      // If high accuracy timed out after 3.5s, immediately retry with fast network/cell tower positioning
       if (highAccuracy && err.code === err.TIMEOUT) {
         navigator.geolocation.getCurrentPosition(
           onGeoSuccess,
-          () => {
+          (err2) => {
             setIsGpsLoading(false);
-            selectLocation(22.6288, 75.5684, 'Sagore Main Market, Pithampur, MP 454774', '454774');
+            console.warn('Network location fallback notice:', err2.message);
+            // Switch to map view at current coordinates
+            setViewMode('MAP_PINPOINT');
           },
-          { timeout: 7000, enableHighAccuracy: false, maximumAge: 300000 }
+          { timeout: 3500, enableHighAccuracy: false, maximumAge: 120000 }
         );
         return;
       }
@@ -305,14 +312,13 @@ export default function LocationMapModal({
         try { localStorage.setItem('jr_location_perm', 'denied'); } catch {}
       }
       console.warn('GPS location notice:', err.message);
-      // Fallback to Sagore center without getting stuck
-      selectLocation(22.6288, 75.5684, 'Sagore Main Market, Pithampur, MP 454774', '454774');
+      setViewMode('MAP_PINPOINT');
     };
 
     navigator.geolocation.getCurrentPosition(
       onGeoSuccess,
       onGeoError,
-      { timeout: 8000, enableHighAccuracy: highAccuracy, maximumAge: 300000 }
+      { timeout: 4000, enableHighAccuracy: highAccuracy, maximumAge: 60000 }
     );
   };
 
@@ -465,14 +471,16 @@ export default function LocationMapModal({
                     <button
                       key={item.placeId || idx}
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
+                        const targetLat = typeof item.lat === 'number' && !isNaN(item.lat) ? item.lat : parseFloat(item.lat || item.latitude || '22.6288');
+                        const targetLng = typeof item.lng === 'number' && !isNaN(item.lng) ? item.lng : parseFloat(item.lon || item.lng || item.longitude || '75.5684');
                         selectLocation(
-                          typeof item.lat === 'number' ? item.lat : parseFloat(item.lat || '22.6288'),
-                          typeof item.lng === 'number' ? item.lng : parseFloat(item.lon || item.lng || '75.5684'),
-                          item.description || item.display_name,
+                          targetLat,
+                          targetLng,
+                          item.description || item.display_name || item.mainText,
                           item.pincode || '454774',
-                        )
-                      }
+                        );
+                      }}
                       className="w-full p-3 text-left hover:bg-emerald-50/50 flex items-start gap-2.5 transition-colors"
                     >
                       <span className="material-symbols-outlined text-emerald-700 text-[18px] shrink-0 mt-0.5">
@@ -690,14 +698,16 @@ export default function LocationMapModal({
                   <button
                     key={item.placeId || idx}
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
+                      const targetLat = typeof item.lat === 'number' && !isNaN(item.lat) ? item.lat : parseFloat(item.lat || item.latitude || '22.6288');
+                      const targetLng = typeof item.lng === 'number' && !isNaN(item.lng) ? item.lng : parseFloat(item.lon || item.lng || item.longitude || '75.5684');
                       selectLocation(
-                        typeof item.lat === 'number' ? item.lat : parseFloat(item.lat || '22.6288'),
-                        typeof item.lng === 'number' ? item.lng : parseFloat(item.lon || item.lng || '75.5684'),
-                        item.description || item.display_name,
+                        targetLat,
+                        targetLng,
+                        item.description || item.display_name || item.mainText,
                         item.pincode || '454774',
-                      )
-                    }
+                      );
+                    }}
                     className="w-full p-2.5 text-left hover:bg-emerald-50/50 flex items-start gap-2 text-xs"
                   >
                     <span className="material-symbols-outlined text-emerald-700 text-[16px] shrink-0 mt-0.5">
