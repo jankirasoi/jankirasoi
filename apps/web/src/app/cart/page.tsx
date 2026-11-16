@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { api, DeliverySlot, QuoteResponse, DEFAULT_FOOD_IMAGE, UserProfile, MenuItem, CatalogResponse, resolveDishImageUrl, DEFAULT_DISH_IMAGES } from '../../lib/api';
 import { useCart } from '../../context/CartContext';
 import LocationMapModal, { LocationData } from '../../components/LocationMapModal';
+import { getDistanceFromKitchen } from '../../lib/deliveryTiming';
 
 export default function CartPage() {
   const router = useRouter();
@@ -56,6 +57,19 @@ export default function CartPage() {
   const [allCatalogItems, setAllCatalogItems] = useState<MenuItem[]>([]);
 
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  const estimatedDistanceKm = useMemo(() => {
+    return getDistanceFromKitchen(coords?.lat, coords?.lng, pincode);
+  }, [coords, pincode]);
+
+  const dynamicDeliveryTimingText = useMemo(() => {
+    const dist = estimatedDistanceKm;
+    const travelMins = Math.round(dist * 2.5 + 2);
+    const prepMins = 12; // fresh cooking & packing buffer
+    const totalMin = Math.max(15, prepMins + travelMins - 2);
+    const totalMax = totalMin + 6;
+    return `~${totalMin}–${totalMax} mins (${dist.toFixed(1)} km)`;
+  }, [estimatedDistanceKm]);
 
   // Fetch Delivery Slots
   useEffect(() => {
@@ -167,6 +181,13 @@ export default function CartPage() {
           }
         }
       } else if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('jr_session_token');
+        if (!token) {
+          setCurrentUser(null);
+          setCustomerPhone('');
+          setCustomerName('');
+          return;
+        }
         const savedPhone = localStorage.getItem('jr_customer_phone');
         const savedName = localStorage.getItem('jr_customer_name');
         if (savedPhone) {
@@ -183,6 +204,31 @@ export default function CartPage() {
         }
       }
     });
+
+    const handleAuthChange = () => {
+      if (typeof window === 'undefined') return;
+      const token = localStorage.getItem('jr_session_token');
+      if (!token) {
+        setCurrentUser(null);
+        setCustomerPhone('');
+        setCustomerName('');
+      } else {
+        api.getCurrentUser().then((u) => {
+          if (u && u.role === 'CUSTOMER') {
+            setCurrentUser(u);
+            if (u.phone) setCustomerPhone(u.phone);
+            if (u.name) setCustomerName(u.name);
+          }
+        });
+      }
+    };
+
+    window.addEventListener('storage', handleAuthChange);
+    window.addEventListener('jr_auth_changed', handleAuthChange);
+    return () => {
+      window.removeEventListener('storage', handleAuthChange);
+      window.removeEventListener('jr_auth_changed', handleAuthChange);
+    };
   }, []);
 
   // Online/offline connection listener
@@ -665,7 +711,7 @@ export default function CartPage() {
           <div>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF4ED] text-[#38754A] border border-[#38754A]/20 text-xs font-bold mb-2">
               <span className="w-2 h-2 rounded-full bg-[#38754A] animate-ping" />
-              Delivering in ~12-15 mins
+              Delivering in {dynamicDeliveryTimingText}
             </span>
             <h2 className="text-xl font-extrabold text-[#292D26]">Order Confirmed!</h2>
             <p className="text-xs text-[#77786F] mt-1 leading-relaxed">
@@ -1198,7 +1244,7 @@ export default function CartPage() {
                 <p className="text-[11px] text-slate-500 font-medium">Delivery Mode</p>
                 <div className="px-3 py-2 rounded-xl border border-emerald-600 bg-emerald-50 text-emerald-900 text-xs font-bold flex items-center gap-1.5 shadow-2xs">
                   <span className="material-symbols-outlined text-[16px] text-emerald-700">bolt</span>
-                  <span>Standard Fresh Dispatch (30-40 mins)</span>
+                  <span>Standard Fresh Dispatch ({dynamicDeliveryTimingText})</span>
                 </div>
               </div>
             )}

@@ -1142,57 +1142,70 @@ export const api = {
       ? localStorage.getItem('jr_session_token')
       : localStorage.getItem('jr_rider_token');
 
+    // If no session token exists, the user is logged out - return null immediately
+    if (!token) {
+      return null;
+    }
+
     const base = getApiBase();
-    if (token) {
-      try {
-        const res = await fetch(`${base}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.authenticated && data.user) {
-            // Verify role matches requested context to avoid cross-role profile bleed
-            if (role === 'CUSTOMER' && data.user.role === 'CUSTOMER') {
-              localStorage.setItem('jr_user_profile', JSON.stringify(data.user));
-              if (data.user.phone) localStorage.setItem('jr_customer_phone', data.user.phone);
-              if (data.user.name) localStorage.setItem('jr_customer_name', data.user.name);
-              if (data.user.savedAddress) localStorage.setItem('jr_customer_address', JSON.stringify(data.user.savedAddress));
-              // Sync server-persisted address list into localStorage (without overwriting if server is empty)
-              if (Array.isArray(data.user.savedAddresses) && data.user.savedAddresses.length > 0) {
-                localStorage.setItem('jr_saved_addresses', JSON.stringify(data.user.savedAddresses));
-                localStorage.setItem('jr_selected_address', JSON.stringify(data.user.savedAddresses[0]));
-              }
-              return data.user;
-            } else if (role === 'RIDER' && data.user.role === 'RIDER') {
-              localStorage.setItem('jr_rider_profile', JSON.stringify(data.user));
-              return data.user;
+    try {
+      const res = await fetch(`${base}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.authenticated && data.user) {
+          // Verify role matches requested context to avoid cross-role profile bleed
+          if (role === 'CUSTOMER' && data.user.role === 'CUSTOMER') {
+            localStorage.setItem('jr_user_profile', JSON.stringify(data.user));
+            if (data.user.phone) localStorage.setItem('jr_customer_phone', data.user.phone);
+            if (data.user.name) localStorage.setItem('jr_customer_name', data.user.name);
+            if (data.user.savedAddress) localStorage.setItem('jr_customer_address', JSON.stringify(data.user.savedAddress));
+            // Sync server-persisted address list into localStorage
+            if (Array.isArray(data.user.savedAddresses) && data.user.savedAddresses.length > 0) {
+              localStorage.setItem('jr_saved_addresses', JSON.stringify(data.user.savedAddresses));
+              localStorage.setItem('jr_selected_address', JSON.stringify(data.user.savedAddresses[0]));
             }
+            return data.user;
+          } else if (role === 'RIDER' && data.user.role === 'RIDER') {
+            localStorage.setItem('jr_rider_profile', JSON.stringify(data.user));
+            return data.user;
           }
         }
-      } catch {
-        // Fallback to cache
+      } else if (res.status === 401 || res.status === 403) {
+        // Token expired or invalid on server
+        if (role === 'CUSTOMER') {
+          localStorage.removeItem('jr_session_token');
+          localStorage.removeItem('jr_user_profile');
+        } else {
+          localStorage.removeItem('jr_rider_token');
+          localStorage.removeItem('jr_rider_profile');
+        }
+        return null;
+      }
+    } catch {
+      // Offline fallback: ONLY when token exists in storage
+      if (role === 'CUSTOMER') {
+        const cached = localStorage.getItem('jr_user_profile');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed?.role === 'CUSTOMER') return parsed;
+          } catch {}
+        }
+      } else if (role === 'RIDER') {
+        const cached = localStorage.getItem('jr_rider_profile');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed?.role === 'RIDER') return parsed;
+          } catch {}
+        }
       }
     }
 
-    if (role === 'CUSTOMER') {
-      const cached = localStorage.getItem('jr_user_profile');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (parsed?.role === 'CUSTOMER') return parsed;
-        } catch {}
-      }
-    } else if (role === 'RIDER') {
-      const cached = localStorage.getItem('jr_rider_profile');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (parsed?.role === 'RIDER') return parsed;
-        } catch {}
-      }
-    }
     return null;
   },
 
@@ -1240,11 +1253,31 @@ export const api = {
       if (role === 'CUSTOMER' || role === 'ALL') {
         localStorage.removeItem('jr_session_token');
         localStorage.removeItem('jr_user_profile');
+        localStorage.removeItem('jr_customer_phone');
+        localStorage.removeItem('jr_customer_name');
+        localStorage.removeItem('jr_customer_address');
+        localStorage.removeItem('jr_selected_address');
+        localStorage.removeItem('jr_saved_addresses');
+        localStorage.removeItem('jr_recent_orders');
+        localStorage.removeItem('jr_last_order_number');
+        localStorage.removeItem('jr_last_tracking_token');
+        localStorage.removeItem('jankirasoi_tray_v1');
       }
       if (role === 'RIDER' || role === 'ALL') {
         localStorage.removeItem('jr_rider_token');
         localStorage.removeItem('jr_rider_profile');
       }
+
+      // Clear memory and session cache
+      memoryCache.clear();
+      try {
+        window.sessionStorage.clear();
+      } catch {}
+
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new Event('jr_auth_changed'));
+      window.dispatchEvent(new Event('jr_address_changed'));
+      window.dispatchEvent(new CustomEvent('jr_cart_cleared'));
     }
   },
 

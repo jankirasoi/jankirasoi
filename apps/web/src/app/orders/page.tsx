@@ -53,11 +53,20 @@ export default function OrdersPage() {
         const user = await api.getCurrentUser('CUSTOMER');
         if (isMounted) setCurrentUser(user);
 
+        if (!user) {
+          // Logged out: do not display any cached or previous customer orders
+          if (isMounted) {
+            setOrders([]);
+            setLoading(false);
+          }
+          return;
+        }
+
         const fetchedList: CompactOrder[] = [];
         const seenOrderNumbers = new Set<string>();
 
-        // 1. Fetch authentic order history by customer phone from DB
-        const customerPhone = user?.phone || (typeof window !== 'undefined' ? localStorage.getItem('jr_customer_phone') : null);
+        // 1. Fetch authentic order history by authenticated customer phone from DB
+        const customerPhone = user.phone;
         if (customerPhone) {
           try {
             const liveOrders = await api.getCustomerOrders(customerPhone);
@@ -160,6 +169,28 @@ export default function OrdersPage() {
     }
 
     loadOrders();
+
+    const handleAuth = () => {
+      const token = localStorage.getItem('jr_session_token');
+      if (!token) {
+        if (isMounted) {
+          setCurrentUser(null);
+          setOrders([]);
+          setLoading(false);
+        }
+      } else {
+        loadOrders();
+      }
+    };
+
+    window.addEventListener('storage', handleAuth);
+    window.addEventListener('jr_auth_changed', handleAuth);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', handleAuth);
+      window.removeEventListener('jr_auth_changed', handleAuth);
+    };
   }, []);
 
   // Filtered orders
@@ -330,28 +361,36 @@ export default function OrdersPage() {
             /* Empty State */
             <div className="col-span-full bg-white rounded-2xl border border-[#EEE7DC] p-8 text-center flex flex-col items-center gap-3 my-4 shadow-xs">
               <div className="w-14 h-14 rounded-full bg-[#EAF4ED] text-[#38754A] flex items-center justify-center">
-                <span className="material-symbols-outlined text-[32px]">receipt_long</span>
+                <span className="material-symbols-outlined text-[32px]">
+                  {currentUser ? 'receipt_long' : 'account_circle'}
+                </span>
               </div>
               <div>
                 <h3 className="font-headline font-bold text-base text-[#292D26]">
-                  {activeTab === 'ACTIVE'
+                  {!currentUser
+                    ? 'Sign In to View Orders'
+                    : activeTab === 'ACTIVE'
                     ? 'No Active Orders In Transit'
                     : activeTab === 'DELIVERED'
                     ? 'No Delivered Orders Found'
                     : 'No Orders Placed Yet'}
                 </h3>
                 <p className="text-xs text-[#77786F] max-w-xs mx-auto mt-1 leading-relaxed">
-                  {activeTab === 'ACTIVE'
+                  {!currentUser
+                    ? 'Please sign in with your mobile number to view your active deliveries and past meals.'
+                    : activeTab === 'ACTIVE'
                     ? 'When you order a piping-hot thali or fresh parathas, track live rider progress here.'
                     : 'Order fresh home-style meals cooked in pure desi ghee to start building your order history.'}
                 </p>
               </div>
               <Link
-                href="/menu"
+                href={currentUser ? '/menu' : '/login?redirect=/orders'}
                 className="mt-2 px-5 py-2.5 bg-[#38754A] hover:bg-[#285C38] text-white font-bold text-xs rounded-xl shadow-xs transition-transform active:scale-95 flex items-center gap-1.5"
               >
-                <span className="material-symbols-outlined text-[18px]">restaurant</span>
-                <span>Explore Today's Menu</span>
+                <span className="material-symbols-outlined text-[18px]">
+                  {currentUser ? 'restaurant' : 'login'}
+                </span>
+                <span>{currentUser ? "Explore Today's Menu" : 'Sign In with Mobile'}</span>
               </Link>
             </div>
           ) : (

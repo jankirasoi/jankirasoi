@@ -16,6 +16,7 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { RidersModule } from './modules/riders/riders.module';
 import { EventsModule } from './modules/events/events.module';
+import { RedisModule } from './common/redis/redis.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { EventsModule } from './modules/events/events.module';
         limit: 100, // Max 100 requests per minute per IP
       },
     ]),
+    RedisModule,
     PrismaModule,
     HealthModule,
     AuthModule,

@@ -12,6 +12,7 @@ import { OrdersEventsService } from '../events/orders-events.service';
 import { AdminLoginDto, RiderLoginDto, CustomerLoginDto, CreateRiderDto, ToggleRiderAvailabilityDto, BanCustomerDto, PayUnbanPenaltyDto } from './dto/auth.dto';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
+import { RedisService } from '../../common/redis/redis.service';
 
 @Injectable()
 export class AuthService {
@@ -19,6 +20,7 @@ export class AuthService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
     @Optional() private readonly eventsService?: OrdersEventsService,
   ) {}
 
@@ -113,31 +115,41 @@ export class AuthService {
   }
 
   async validateSessionToken(token: string) {
-    const session = await this.prisma.session.findUnique({
-      where: { token },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            role: true,
-            isActive: true,
+    if (!token) return null;
+    const redisKey = `janki:session:${token}`;
+
+    return this.redis.getOrSet(
+      redisKey,
+      async () => {
+        const session = await this.prisma.session.findUnique({
+          where: { token },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                role: true,
+                isActive: true,
+              },
+            },
           },
-        },
+        });
+
+        if (!session || session.expiresAt < new Date()) {
+          return null;
+        }
+
+        if (!session.user || !session.user.isActive) {
+          return null;
+        }
+
+        return session.user;
       },
-    });
-
-    if (!session || session.expiresAt < new Date()) {
-      return null;
-    }
-
-    if (!session.user || !session.user.isActive) {
-      return null;
-    }
-
-    return session.user;
+      86400, // 24 hours in Upstash Redis
+      300    // 5 minutes in L1 memory
+    );
   }
 
   async loginCustomer(dto: CustomerLoginDto) {
@@ -283,77 +295,89 @@ export class AuthService {
   }
 
   async getMe(token: string) {
-    const user = await this.validateSessionToken(token);
-    if (!user) {
+    if (!token) {
       throw new UnauthorizedException('Session expired or invalid.');
     }
+    const redisKey = `janki:me:${token}`;
 
-    let savedAddress = null;
-    let savedAddresses: any[] = [];
-    let recentOrders: any[] = [];
-    let riderInfo = null;
-    let banDetails: any = null;
+    return this.redis.getOrSet(
+      redisKey,
+      async () => {
+        const user = await this.validateSessionToken(token);
+        if (!user) {
+          throw new UnauthorizedException('Session expired or invalid.');
+        }
 
-    if (user.role === 'CUSTOMER') {
-      if (!user.isActive) {
-        banDetails = await this.getCustomerBanStatus(user.phone);
-      }
+        let savedAddress = null;
+        let savedAddresses: any[] = [];
+        let recentOrders: any[] = [];
+        let riderInfo = null;
+        let banDetails: any = null;
 
-      // Load full user record to get persisted savedAddresses
-      const fullUser = await this.prisma.user.findUnique({
-        where: { id: user.id },
-        select: { savedAddresses: true },
-      });
-      if (Array.isArray(fullUser?.savedAddresses)) {
-        savedAddresses = fullUser.savedAddresses as any[];
-        savedAddress = savedAddresses[0] || null;
-      }
+        if (user.role === 'CUSTOMER') {
+          if (!user.isActive) {
+            banDetails = await this.getCustomerBanStatus(user.phone);
+          }
 
-      recentOrders = await this.prisma.order.findMany({
-        where: { customerPhone: user.phone },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        select: {
-          id: true,
-          orderNumber: true,
-          status: true,
-          totalAmountPaise: true,
-          deliveryAddress: true,
-          trackingToken: true,
-          createdAt: true,
-        },
-      });
+          // Load full user record to get persisted savedAddresses
+          const fullUser = await this.prisma.user.findUnique({
+            where: { id: user.id },
+            select: { savedAddresses: true },
+          });
+          if (Array.isArray(fullUser?.savedAddresses)) {
+            savedAddresses = fullUser.savedAddresses as any[];
+            savedAddress = savedAddresses[0] || null;
+          }
 
-      // Fall back to last order delivery address if no saved addresses exist
-      if (!savedAddress) {
-        savedAddress = recentOrders[0]?.deliveryAddress || null;
-      }
-    } else if (user.role === 'RIDER') {
-      const profile = await this.prisma.riderProfile.findUnique({
-        where: { userId: user.id },
-      });
-      riderInfo = profile;
-    }
+          recentOrders = await this.prisma.order.findMany({
+            where: { customerPhone: user.phone },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            select: {
+              id: true,
+              orderNumber: true,
+              status: true,
+              totalAmountPaise: true,
+              deliveryAddress: true,
+              trackingToken: true,
+              createdAt: true,
+            },
+          });
 
-    return {
-      user: {
-        id: user.id,
-        name: user.name,
-        phone: user.phone,
-        email: user.email,
-        role: user.role,
-        isActive: user.isActive,
-        isBanned: !user.isActive,
-        banReason: banDetails?.reason || null,
-        penaltyAmountPaise: banDetails?.penaltyAmountPaise || null,
-        penaltyAmountRupees: banDetails?.penaltyAmountRupees || null,
-        savedAddress,
-        savedAddresses,
-        orderCount: recentOrders.length,
-        recentOrders,
-        riderProfile: riderInfo,
+          // Fall back to last order delivery address if no saved addresses exist
+          if (!savedAddress) {
+            savedAddress = recentOrders[0]?.deliveryAddress || null;
+          }
+        } else if (user.role === 'RIDER') {
+          const profile = await this.prisma.riderProfile.findUnique({
+            where: { userId: user.id },
+          });
+          riderInfo = profile;
+        }
+
+        return {
+          user: {
+            id: user.id,
+            name: user.name,
+            phone: user.phone,
+            email: user.email,
+            role: user.role,
+            isActive: user.isActive,
+            isBanned: !user.isActive,
+            banReason: banDetails?.reason || null,
+            penaltyAmountPaise: banDetails?.penaltyAmountPaise || null,
+            penaltyAmountRupees: banDetails?.penaltyAmountRupees || null,
+            savedAddress,
+            savedAddresses,
+            orderCount: recentOrders.length,
+            recentOrders,
+            riderProfile: riderInfo,
+          },
+        };
       },
-    };
+      600, // 10 minutes in Upstash Redis
+      30   // 30 seconds in L1 memory
+    );
   }
 
   async updateCustomerAddresses(token: string, addresses: any[]) {
@@ -374,6 +398,9 @@ export class AuthService {
       where: { id: user.id },
       data: { savedAddresses: sanitised },
     });
+
+    // Invalidate cached profile for this session
+    await this.redis.del(`janki:me:${token}`).catch(() => {});
 
     this.logger.log(`Updated saved addresses for customer ${user.phone} (${sanitised.length} addresses)`);
     return { success: true, savedAddresses: sanitised };

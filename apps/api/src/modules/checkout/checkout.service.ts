@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { OrdersEventsService } from '../events/orders-events.service';
 import { DeliveryZonesService } from '../delivery-zones/delivery-zones.service';
 import { PhonePeService } from '../payments/phonepe.service';
+import { RedisService } from '../../common/redis/redis.service';
 const Razorpay = require('razorpay');
 
 interface CachedQuote {
@@ -58,6 +59,7 @@ export class CheckoutService {
     private readonly ordersEventsService: OrdersEventsService,
     private readonly deliveryZonesService: DeliveryZonesService,
     private readonly phonePeService: PhonePeService,
+    private readonly redis: RedisService,
   ) {
     const key_id = this.configService.get<string>('RAZORPAY_KEY_ID');
     const key_secret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -67,72 +69,39 @@ export class CheckoutService {
   }
 
   // ---------------------------------------------------------------------------
-  // Quote persistence & caching — hybrid in-memory + DB storage.
-  // Lookups check in-memory map first (0ms), falling back to DB for cluster/restart.
-  // Expiring a quote only expires that specific token, preserving all other quotes.
+  // Quote persistence & caching — multi-tier in-memory + Upstash Redis.
   // ---------------------------------------------------------------------------
 
   private async saveQuote(quote: CachedQuote): Promise<void> {
-    // 0ms instant in-memory quote registration
     this.quoteCache.set(quote.quoteToken, quote);
-    // Non-blocking background persistence
-    setImmediate(async () => {
-      try {
-        await this.prisma.outboxMessage.create({
-          data: {
-            eventType: 'QUOTE_CACHE',
-            payload: quote as any,
-            status: 'PENDING',
-            scheduledFor: quote.expiresAt,
-          },
-        });
-      } catch (err) {
-        this.logger.warn(`Failed to persist quote to DB: ${(err as Error).message}`);
-      }
-    });
+    this.redis.set(`janki:quote:${quote.quoteToken}`, quote, 900, 900).catch(() => {});
   }
 
   private async loadQuote(quoteToken: string): Promise<CachedQuote | null> {
-    // 1. Fast in-memory lookup (0ms)
     const inMemory = this.quoteCache.get(quoteToken);
-    if (inMemory && inMemory.expiresAt > new Date()) {
+    if (inMemory && new Date(inMemory.expiresAt) > new Date()) {
       return inMemory;
     }
 
-    // 2. Fallback to DB lookup specifically matching quoteToken
     try {
-      const records = await this.prisma.outboxMessage.findMany({
-        where: {
-          eventType: 'QUOTE_CACHE',
-          status: 'PENDING',
-          scheduledFor: { gt: new Date() },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      });
-
-      for (const rec of records) {
-        const payload = rec.payload as any;
-        if (payload && payload.quoteToken === quoteToken) {
-          const loaded: CachedQuote = {
-            ...payload,
-            expiresAt: new Date(payload.expiresAt),
-            serviceDate: new Date(payload.serviceDate),
-          };
-          this.quoteCache.set(quoteToken, loaded);
-          return loaded;
-        }
+      const fromRedis = await this.redis.get<CachedQuote>(`janki:quote:${quoteToken}`);
+      if (fromRedis && new Date(fromRedis.expiresAt) > new Date()) {
+        const loaded: CachedQuote = {
+          ...fromRedis,
+          expiresAt: new Date(fromRedis.expiresAt),
+          serviceDate: new Date(fromRedis.serviceDate),
+        };
+        this.quoteCache.set(quoteToken, loaded);
+        return loaded;
       }
-    } catch (err) {
-      this.logger.warn(`Failed to load quote from DB: ${(err as Error).message}`);
-    }
+    } catch {}
 
     return null;
   }
 
   private async expireQuote(quoteToken: string): Promise<void> {
-    // Instant in-memory removal
     this.quoteCache.delete(quoteToken);
+    this.redis.del(`janki:quote:${quoteToken}`).catch(() => {});
   }
 
   async calculateQuote(dto: CalculateQuoteDto) {
@@ -351,11 +320,23 @@ export class CheckoutService {
   }
 
   async placeOrder(dto: PlaceOrderDto, idempotencyKey?: string) {
-    // 0. Fast In-Memory Idempotency Check (0ms)
+    // 0. Fast In-Memory + Redis Distributed Lock and Idempotency Check
     if (idempotencyKey) {
       const cachedResult = this.idempotencyCache.get(idempotencyKey);
       if (cachedResult && cachedResult.expiry > Date.now()) {
         return cachedResult.result;
+      }
+
+      const fromRedisIdemp = await this.redis.get<any>(`janki:idemp:${idempotencyKey}`);
+      if (fromRedisIdemp) {
+        this.idempotencyCache.set(idempotencyKey, { result: fromRedisIdemp, expiry: Date.now() + 10 * 60 * 1000 });
+        return fromRedisIdemp;
+      }
+
+      // Acquire distributed lock for 15s to prevent concurrent duplicate orders
+      const acquired = await this.redis.acquireLock(`order:${idempotencyKey}`, 15);
+      if (!acquired) {
+        throw new BadRequestException('Order submission is already in progress. Please wait.');
       }
 
       // Check if an order already exists with this idempotency key in the database
@@ -634,12 +615,14 @@ export class CheckoutService {
       },
     };
 
-    // Cache idempotency for 10 minutes
+    // Cache idempotency for 10 minutes in memory and Redis
     if (idempotencyKey) {
       this.idempotencyCache.set(idempotencyKey, {
         result: orderResult,
         expiry: Date.now() + 10 * 60 * 1000,
       });
+      this.redis.set(`janki:idemp:${idempotencyKey}`, orderResult, 600, 600).catch(() => {});
+      this.redis.releaseLock(`order:${idempotencyKey}`).catch(() => {});
     }
 
     // Expire quote in memory immediately

@@ -14,6 +14,8 @@ import { api, TrackOrderResponse } from '../../lib/api';
 import { getActiveTrackingIdentifier, clearActiveTrackingIdentifier } from '../../lib/orderStorage';
 import LakhanAvatar from '../../components/LakhanAvatar';
 
+import { calculateDynamicDeliveryTiming } from '../../lib/deliveryTiming';
+
 const LiveDeliveryMap = dynamic(() => import('../../components/LiveDeliveryMap'), { ssr: false });
 
 // ── Delivery timeline steps ─────────────────────────────────────────────────
@@ -38,46 +40,23 @@ function getTimelineIndex(status: string): number {
 }
 
 // ── Blinkit Reference 2nd Image Styling Helpers ─────────────────────────────
-function getBlinkitStatus(status: string) {
-  if (status === 'DELIVERED') {
-    return {
-      subtitle: 'Order delivered safely',
-      headline: 'Delivered to your doorstep 🎉',
-      bubble: 'Enjoy your hot homestyle pure veg meal!',
-    };
-  }
-  if (status === 'OUT_FOR_DELIVERY') {
-    return {
-      subtitle: 'Order is on the way',
-      headline: 'Arriving in 6 minutes',
-      bubble: 'I have picked up your order, and I am on the way',
-    };
-  }
-  if (status === 'READY_FOR_PICKUP') {
-    return {
-      subtitle: 'Order is packed & ready',
-      headline: 'Arriving in 10 minutes',
-      bubble: 'Insulated cask packed at kitchen, rider arriving for pickup',
-    };
-  }
-  if (status === 'PREPARING') {
-    return {
-      subtitle: 'Cooking on fresh tawa 🔥',
-      headline: 'Arriving in 15 minutes',
-      bubble: 'Chef is cooking fresh rotis & packaging homestyle vegetables',
-    };
-  }
-  if (status === 'ACCEPTED') {
-    return {
-      subtitle: 'Order confirmed by chef',
-      headline: 'Arriving in 20 minutes',
-      bubble: 'Kitchen has accepted your batch. Preparing fresh ingredients',
-    };
-  }
+function getBlinkitStatus(order: TrackOrderResponse) {
+  const dynamicTiming = calculateDynamicDeliveryTiming({
+    status: order.status,
+    createdAt: order.createdAt,
+    destCoordinates: order.coordinates,
+    riderLocation: order.rider?.location,
+    kitchenCoordinates: order.kitchenCoordinates,
+    pincode: order.deliveryAddress?.pincode,
+    riderName: order.riderName,
+  });
+
   return {
-    subtitle: 'Order received & confirmed',
-    headline: 'Arriving in 25 minutes',
-    bubble: 'Order registered at Janki Rasoi kitchen station',
+    subtitle: dynamicTiming.statusSubtitle,
+    headline: dynamicTiming.etaHeadline,
+    bubble: dynamicTiming.bubbleText,
+    distanceKm: dynamicTiming.distanceKm,
+    etaMins: dynamicTiming.etaMins,
   };
 }
 
@@ -377,7 +356,7 @@ function MainTrackingView({
   selectedOrderIndex: number;
   setSelectedOrderIndex: (i: number) => void;
 }) {
-  const blinkit = getBlinkitStatus(order.status);
+  const blinkit = getBlinkitStatus(order);
 
   return (
     <main className="flex flex-col relative w-full min-h-screen bg-[#F6F8F6]">

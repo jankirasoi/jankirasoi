@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Optional } from '@n
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, ToggleSoldOutDto, UpdateProductDto } from './dto/catalog.dto';
 import { OrdersEventsService } from '../events/orders-events.service';
+import { RedisService } from '../../common/redis/redis.service';
 
 interface CachedCatalog {
   data: any;
@@ -99,12 +100,15 @@ export class CatalogService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
     @Optional() private readonly eventsService?: OrdersEventsService,
   ) {}
 
-  clearCache() {
+  clearCache(serviceDateString?: string) {
     this.catalogCache.clear();
     try {
+      const today = serviceDateString || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      this.redis.del(`janki:catalog:today:${today}`).catch(() => {});
       this.eventsService?.emitOrderEvent('CATALOG_UPDATED' as any, {});
     } catch {
       // safe fallback if events bus not active
@@ -113,88 +117,87 @@ export class CatalogService {
 
   async getPublicCatalog(serviceDateString?: string) {
     const { dateObj: serviceDate, dateStr } = getNormalizedServiceDate(serviceDateString);
-    const cacheKey = dateStr;
-    const cached = this.catalogCache.get(cacheKey);
-    const now = Date.now();
-    if (cached && now - cached.cachedAt < this.CACHE_TTL_MS) {
-      return cached.data;
-    }
+    const redisKey = `janki:catalog:today:${dateStr}`;
 
-    const categories = await this.prisma.menuCategory.findMany({
-      where: { isActive: true },
-      orderBy: { displayOrder: 'asc' },
-      include: {
-        products: {
+    return this.redis.getOrSet(
+      redisKey,
+      async () => {
+        const categories = await this.prisma.menuCategory.findMany({
           where: { isActive: true },
           orderBy: { displayOrder: 'asc' },
           include: {
-            variants: {
+            products: {
               where: { isActive: true },
               orderBy: { displayOrder: 'asc' },
-            },
-            addonGroups: {
               include: {
-                addonGroup: {
+                variants: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+                addonGroups: {
                   include: {
-                    options: {
-                      where: { isActive: true },
+                    addonGroup: {
+                      include: {
+                        options: {
+                          where: { isActive: true },
+                        },
+                      },
                     },
                   },
                 },
+                availabilities: {
+                  where: { serviceDate },
+                },
               },
             },
-            availabilities: {
-              where: { serviceDate },
-            },
           },
-        },
+        });
+
+        return {
+          serviceDate: dateStr,
+          categories: categories.map((cat) => ({
+            id: cat.id,
+            name: cat.name,
+            slug: cat.slug,
+            displayOrder: cat.displayOrder,
+            items: cat.products.map((p) => {
+              const avail = p.availabilities[0];
+              const isSoldOut = avail ? avail.isSoldOut : false;
+              return {
+                id: p.id,
+                name: p.name,
+                slug: p.slug,
+                description: p.description,
+                dietaryType: p.dietaryType,
+                imageUrl: optimizeCloudinaryUrl(p.imageUrl?.trim() || DEFAULT_DISH_IMAGES[p.slug] || '/images/dishes/special-thali-bhar-pet.jpg'),
+                basePricePaise: p.basePricePaise,
+                taxRatePercent: p.taxRatePercent,
+                isSoldOut,
+                variants: p.variants.map((v) => ({
+                  id: v.id,
+                  name: v.name,
+                  priceModifierPaise: v.priceModifierPaise,
+                  isDefault: v.isDefault,
+                })),
+                addonGroups: p.addonGroups.map((ag) => ({
+                  id: ag.addonGroup.id,
+                  name: ag.addonGroup.name,
+                  minSelections: ag.addonGroup.minSelections,
+                  maxSelections: ag.addonGroup.maxSelections,
+                  options: ag.addonGroup.options.map((o) => ({
+                    id: o.id,
+                    name: o.name,
+                    pricePaise: o.pricePaise,
+                  })),
+                })),
+              };
+            }),
+          })),
+        };
       },
-    });
-
-    const result = {
-      serviceDate: dateStr,
-      categories: categories.map((cat) => ({
-        id: cat.id,
-        name: cat.name,
-        slug: cat.slug,
-        displayOrder: cat.displayOrder,
-        items: cat.products.map((p) => {
-          const avail = p.availabilities[0];
-          const isSoldOut = avail ? avail.isSoldOut : false;
-          return {
-            id: p.id,
-            name: p.name,
-            slug: p.slug,
-            description: p.description,
-            dietaryType: p.dietaryType,
-            imageUrl: optimizeCloudinaryUrl(p.imageUrl?.trim() || DEFAULT_DISH_IMAGES[p.slug] || '/images/dishes/special-thali-bhar-pet.jpg'),
-            basePricePaise: p.basePricePaise,
-            taxRatePercent: p.taxRatePercent,
-            isSoldOut,
-            variants: p.variants.map((v) => ({
-              id: v.id,
-              name: v.name,
-              priceModifierPaise: v.priceModifierPaise,
-              isDefault: v.isDefault,
-            })),
-            addonGroups: p.addonGroups.map((ag) => ({
-              id: ag.addonGroup.id,
-              name: ag.addonGroup.name,
-              minSelections: ag.addonGroup.minSelections,
-              maxSelections: ag.addonGroup.maxSelections,
-              options: ag.addonGroup.options.map((o) => ({
-                id: o.id,
-                name: o.name,
-                pricePaise: o.pricePaise,
-              })),
-            })),
-          };
-        }),
-      })),
-    };
-
-    this.catalogCache.set(cacheKey, { data: result, cachedAt: now });
-    return result;
+      3600, // 1 hour in Upstash Redis
+      60    // 60 seconds in L1 memory
+    );
   }
 
   async createProduct(dto: CreateProductDto) {

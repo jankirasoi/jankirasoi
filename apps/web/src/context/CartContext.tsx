@@ -72,6 +72,41 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
+  // Listen for storage events & logout to instantly clear cart
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleStorageSync = () => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (!stored) {
+          setItems([]);
+        } else {
+          setItems(JSON.parse(stored));
+        }
+      } catch {
+        setItems([]);
+      }
+    };
+
+    const handleCartCleared = () => {
+      setItems([]);
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {}
+    };
+
+    window.addEventListener('storage', handleStorageSync);
+    window.addEventListener('jr_cart_cleared', handleCartCleared);
+    window.addEventListener('jr_auth_changed', handleStorageSync);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageSync);
+      window.removeEventListener('jr_cart_cleared', handleCartCleared);
+      window.removeEventListener('jr_auth_changed', handleStorageSync);
+    };
+  }, []);
+
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveItems = useCallback((newItems: CartItem[]) => {

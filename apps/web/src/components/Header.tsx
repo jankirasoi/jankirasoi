@@ -12,39 +12,56 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { totalCount } = useCart();
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
-  const [locationName, setLocationName] = useState('Sagore, Pithampur');
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Sync session on mount and listen to storage events
-  useEffect(() => {
-    // Restore chosen location name from local storage
-    if (typeof window !== 'undefined') {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const token = localStorage.getItem('jr_session_token');
+    if (!token) return null;
+    const cached = localStorage.getItem('jr_user_profile');
+    if (cached) {
       try {
-        const stored = localStorage.getItem('jr_selected_address');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          const label = parsed.street?.split(',')[0] || parsed.flat || parsed.city;
-          if (label) setLocationName(label);
-        }
+        const parsed = JSON.parse(cached);
+        if (parsed?.role === 'CUSTOMER') return parsed;
       } catch {}
     }
-
-    api.getCurrentUser().then((user) => {
-      if (user && user.role === 'CUSTOMER') {
-        setCurrentUser(user);
-        const hasSelected = typeof window !== 'undefined' && localStorage.getItem('jr_selected_address');
-        if (!hasSelected && user.savedAddress?.street) {
-          setLocationName(user.savedAddress.street.split(',')[0]);
-        }
-      } else {
-        setCurrentUser(null);
+    return null;
+  });
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+  const [locationName, setLocationName] = useState(() => {
+    if (typeof window === 'undefined') return 'Sagore, Pithampur';
+    try {
+      const stored = localStorage.getItem('jr_selected_address');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.street?.split(',')[0] || parsed.flat || parsed.city || 'Sagore, Pithampur';
       }
-    });
+    } catch {}
+    return 'Sagore, Pithampur';
+  });
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-    const handleStorage = () => {
+  // Instant 0ms session sync on mount and on storage/auth events
+  useEffect(() => {
+    const syncUserAndLocation = () => {
+      if (typeof window === 'undefined') return;
+      const token = localStorage.getItem('jr_session_token');
+      if (!token) {
+        setCurrentUser(null);
+        setLocationName('Sagore, Pithampur');
+        return;
+      }
+
+      // 1. Instant sync from local profile (0ms, zero lag!)
+      const cached = localStorage.getItem('jr_user_profile');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed?.role === 'CUSTOMER') {
+            setCurrentUser(parsed);
+          }
+        } catch {}
+      }
+
       let activeLabel = '';
       try {
         const stored = localStorage.getItem('jr_selected_address');
@@ -55,23 +72,29 @@ export default function Header() {
         }
       } catch {}
 
+      // 2. Background revalidation
       api.getCurrentUser().then((user) => {
         if (user && user.role === 'CUSTOMER') {
           setCurrentUser(user);
-          if (!activeLabel && user.savedAddress?.street) {
+          const hasSelected = localStorage.getItem('jr_selected_address');
+          if (!hasSelected && user.savedAddress?.street) {
             setLocationName(user.savedAddress.street.split(',')[0]);
           }
-        } else {
+        } else if (!localStorage.getItem('jr_session_token')) {
           setCurrentUser(null);
         }
       });
     };
 
-    window.addEventListener('storage', handleStorage);
-    window.addEventListener('jr_address_changed', handleStorage);
+    syncUserAndLocation();
+
+    window.addEventListener('storage', syncUserAndLocation);
+    window.addEventListener('jr_address_changed', syncUserAndLocation);
+    window.addEventListener('jr_auth_changed', syncUserAndLocation);
     return () => {
-      window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('jr_address_changed', handleStorage);
+      window.removeEventListener('storage', syncUserAndLocation);
+      window.removeEventListener('jr_address_changed', syncUserAndLocation);
+      window.removeEventListener('jr_auth_changed', syncUserAndLocation);
     };
   }, []);
 

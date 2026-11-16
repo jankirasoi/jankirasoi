@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../../common/redis/redis.service';
 
 export const SAGORE_KITCHEN_LAT = 22.6288;
 export const SAGORE_KITCHEN_LNG = 75.5684;
@@ -112,7 +113,10 @@ export class DeliveryZonesService {
   private readonly logger = new Logger(DeliveryZonesService.name);
   private readonly locationCache = new Map<string, { city: string; district: string; state: string }>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   private async resolveLocation(pincode: string): Promise<{ city: string; district: string; state: string }> {
     const cached = this.locationCache.get(pincode);
@@ -172,96 +176,106 @@ export class DeliveryZonesService {
 
   async checkPincode(pincode: string, lat?: number, lng?: number) {
     const cleanPin = pincode.trim().replace(/\D/g, '');
-    const location = await this.resolveLocation(cleanPin);
+    const coordKey =
+      typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)
+        ? `_${lat.toFixed(4)}_${lng.toFixed(4)}`
+        : '';
+    const redisKey = `janki:zone:${cleanPin}${coordKey}`;
 
-    // 1. Determine distance from Sagore Kitchen (22.6288, 75.5684)
-    let distanceKm: number;
-    const hasCoordinates = typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng);
+    return this.redis.getOrSet(
+      redisKey,
+      async () => {
+        const location = await this.resolveLocation(cleanPin);
 
-    if (hasCoordinates) {
-      distanceKm = calculateHaversineDistanceKm(SAGORE_KITCHEN_LAT, SAGORE_KITCHEN_LNG, lat, lng);
-    } else if (SAGORE_LOCAL_PINCODES[cleanPin]) {
-      distanceKm = SAGORE_LOCAL_PINCODES[cleanPin].approxDistanceKm;
-    } else if (cleanPin === '454774') {
-      distanceKm = 2.0;
-    } else {
-      // Any other pincode without coordinates outside Sagore region (e.g. Indore 452001, Dhar 454001, Delhi 110017)
-      // Estimate minimum distance based on location
-      distanceKm = cleanPin.startsWith('454') ? 22.0 : cleanPin.startsWith('452') ? 28.0 : 45.0;
-    }
+        // 1. Determine distance from Sagore Kitchen (22.6288, 75.5684)
+        let distanceKm: number;
+        const hasCoordinates = typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng);
 
-    // 2. Beyond 15km: Delivery is strictly NOT available
-    if (distanceKm > MAX_DELIVERY_RADIUS_KM) {
-      return {
-        serviceable: false,
-        pincode: cleanPin,
-        distanceKm,
-        city: location.city || null,
-        district: location.district || null,
-        state: location.state || null,
-        minOrderPaise: 0,
-        deliveryFeePaise: 0,
-        isFreeDelivery: false,
-        message: `Delivery not available beyond 15 km from Sagore Kitchen. (Your location is ~${distanceKm} km away)`,
-      };
-    }
+        if (hasCoordinates) {
+          distanceKm = calculateHaversineDistanceKm(SAGORE_KITCHEN_LAT, SAGORE_KITCHEN_LNG, lat, lng);
+        } else if (SAGORE_LOCAL_PINCODES[cleanPin]) {
+          distanceKm = SAGORE_LOCAL_PINCODES[cleanPin].approxDistanceKm;
+        } else if (cleanPin === '454774') {
+          distanceKm = 2.0;
+        } else {
+          // Any other pincode without coordinates outside Sagore region
+          distanceKm = cleanPin.startsWith('454') ? 22.0 : cleanPin.startsWith('452') ? 28.0 : 45.0;
+        }
 
-    // 3. Within 5km: FREE Delivery (Delivery Fee = ₹0)
-    if (distanceKm <= FREE_DELIVERY_RADIUS_KM) {
-      const zoneName = cleanPin === '454774' ? 'Sagore Central Zone' : `Sagore Zone (~${distanceKm} km)`;
-      return {
-        serviceable: true,
-        zoneId: 'zone-sagore-454774',
-        zoneName,
-        pincode: cleanPin,
-        city: location.city || 'Sagore, Pithampur',
-        district: location.district || 'Dhar',
-        state: location.state || 'Madhya Pradesh',
-        distanceKm,
-        minOrderPaise: 0,
-        deliveryFeePaise: 0, // FREE DELIVERY within 5km!
-        isFreeDelivery: true,
-        freeDeliveryThresholdPaise: 0,
-        estimatedDeliveryMinutes: 30,
-        message: `✓ Delivering to Sagore (~${distanceKm} km) • Free Delivery (Within 5 km)`,
-      };
-    }
+        // 2. Beyond 15km: Delivery is strictly NOT available
+        if (distanceKm > MAX_DELIVERY_RADIUS_KM) {
+          return {
+            serviceable: false,
+            pincode: cleanPin,
+            distanceKm,
+            city: location.city || null,
+            district: location.district || null,
+            state: location.state || null,
+            minOrderPaise: 0,
+            deliveryFeePaise: 0,
+            isFreeDelivery: false,
+            message: `Delivery not available beyond 15 km from Sagore Kitchen. (Your location is ~${distanceKm} km away)`,
+          };
+        }
 
-    // 4. Beyond 5km up to 15km: Free delivery is removed, standard delivery fee applies
-    const zoneConfig = SAGORE_LOCAL_PINCODES[cleanPin];
-    const deliveryFeePaise = distanceKm <= 10.0 ? 3500 : 4500; // ₹35 up to 10km, ₹45 up to 15km
-    const feeRupees = (deliveryFeePaise / 100).toFixed(0);
+        // 3. Within 5km: FREE Delivery (Delivery Fee = ₹0)
+        if (distanceKm <= FREE_DELIVERY_RADIUS_KM) {
+          const zoneName = cleanPin === '454774' ? 'Sagore Central Zone' : `Sagore Zone (~${distanceKm} km)`;
+          return {
+            serviceable: true,
+            zoneId: 'zone-sagore-454774',
+            zoneName,
+            pincode: cleanPin,
+            city: location.city || 'Sagore, Pithampur',
+            district: location.district || 'Dhar',
+            state: location.state || 'Madhya Pradesh',
+            distanceKm,
+            minOrderPaise: 0,
+            deliveryFeePaise: 0, // FREE DELIVERY within 5km!
+            isFreeDelivery: true,
+            freeDeliveryThresholdPaise: 0,
+            estimatedDeliveryMinutes: 30,
+            message: `✓ Delivering to Sagore (~${distanceKm} km) • Free Delivery (Within 5 km)`,
+          };
+        }
 
-    return {
-      serviceable: true,
-      zoneId: `zone-sagore-${cleanPin}`,
-      zoneName: `${zoneConfig?.zoneName || 'Sagore Outer Zone'} (~${distanceKm} km)`,
-      pincode: cleanPin,
-      city: zoneConfig?.city || location.city || 'Pithampur Outer',
-      district: zoneConfig?.district || location.district || 'Dhar',
-      state: zoneConfig?.state || location.state || 'Madhya Pradesh',
-      distanceKm,
-      minOrderPaise: 0,
-      deliveryFeePaise, // Fee applies!
-      isFreeDelivery: false,
-      freeDeliveryThresholdPaise: 49900,
-      estimatedDeliveryMinutes: 45,
-      message: `✓ Serviceable (~${distanceKm} km from Sagore Kitchen) • Delivery Fee ₹${feeRupees} (Beyond 5 km free zone)`,
-    };
+        // 4. Beyond 5km up to 15km: Free delivery is removed, standard delivery fee applies
+        const zoneConfig = SAGORE_LOCAL_PINCODES[cleanPin];
+        const deliveryFeePaise = distanceKm <= 10.0 ? 3500 : 4500; // ₹35 up to 10km, ₹45 up to 15km
+        const feeRupees = (deliveryFeePaise / 100).toFixed(0);
+
+        return {
+          serviceable: true,
+          zoneId: `zone-sagore-${cleanPin}`,
+          zoneName: `${zoneConfig?.zoneName || 'Sagore Outer Zone'} (~${distanceKm} km)`,
+          pincode: cleanPin,
+          city: zoneConfig?.city || location.city || 'Pithampur Outer',
+          district: zoneConfig?.district || location.district || 'Dhar',
+          state: zoneConfig?.state || location.state || 'Madhya Pradesh',
+          distanceKm,
+          minOrderPaise: 0,
+          deliveryFeePaise, // Fee applies!
+          isFreeDelivery: false,
+          freeDeliveryThresholdPaise: 49900,
+          estimatedDeliveryMinutes: 45,
+          message: `✓ Serviceable (~${distanceKm} km from Sagore Kitchen) • Delivery Fee ₹${feeRupees} (Beyond 5 km free zone)`,
+        };
+      },
+      86400, // 24 hours in Upstash Redis
+      300    // 5 minutes in L1 memory
+    );
   }
 
-  private cachedActiveZones: { data: any; cachedAt: number } | null = null;
-  private readonly ZONES_TTL_MS = 600_000; // 10 minutes
-
   async getAllActiveZones() {
-    const now = Date.now();
-    if (this.cachedActiveZones && now - this.cachedActiveZones.cachedAt < this.ZONES_TTL_MS) {
-      return this.cachedActiveZones.data;
-    }
-    const zones = await this.prisma.deliveryZone.findMany({
-      where: { isActive: true },
-    });
-    this.cachedActiveZones = { data: zones, cachedAt: now };
-    return zones;
+    return this.redis.getOrSet(
+      'janki:zones:all',
+      async () => {
+        return this.prisma.deliveryZone.findMany({
+          where: { isActive: true },
+        });
+      },
+      86400, // 24 hours in Redis
+      600    // 10 minutes in memory
+    );
   }
 }

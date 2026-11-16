@@ -67,3 +67,20 @@ services:
         sync: false
       - key: OLA_MAPS_CLIENT_SECRET
         sync: false
+      # Upstash Redis Cache (AWS Mumbai ap-south-1)
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      # PhonePe Payment Gateway
+      - key: PHONEPE_ENV
+        sync: false
+      - key: PHONEPE_MERCHANT_ID
+        sync: false
+      - key: PHONEPE_SALT_KEY
+        sync: false
+      - key: PHONEPE_SALT_INDEX
+        sync: false
+      - key: PHONEPE_CALLBACK_HOST
+        sync: false
+
