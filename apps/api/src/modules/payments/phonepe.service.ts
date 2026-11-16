@@ -33,15 +33,15 @@ export class PhonePeService {
   constructor(private readonly configService: ConfigService) {
     const env = this.configService.get<string>('PHONEPE_ENV', 'UAT');
     this.isProd = env.toUpperCase() === 'PROD';
-    this.merchantId = this.configService.get<string>('PHONEPE_MERCHANT_ID', 'PGTESTPAYUAT');
+    this.merchantId = this.configService.get<string>('PHONEPE_MERCHANT_ID', 'PGTESTPAYUAT86');
     this.saltKey = this.configService.get<string>(
       'PHONEPE_SALT_KEY',
-      '099eb0cd-02cf-4e2a-8aca-3e6c6aff0399',
+      '96434309-7796-489d-8924-ab56988a6076',
     );
     this.saltIndex = this.configService.get<string>('PHONEPE_SALT_INDEX', '1');
     this.callbackHost = this.configService.get<string>(
       'PHONEPE_CALLBACK_HOST',
-      'https://jankirasoi.in',
+      'https://www.jankirasoi.com',
     );
 
     this.hostUrl = this.isProd

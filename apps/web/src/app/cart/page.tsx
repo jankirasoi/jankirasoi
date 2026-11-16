@@ -359,9 +359,38 @@ export default function CartPage() {
       return;
     }
 
+    // Try restoring phone and address from localStorage if currently blank in state
+    let effectivePhone = customerPhone.trim();
+    if (!effectivePhone && typeof window !== 'undefined') {
+      effectivePhone = (localStorage.getItem('jr_customer_phone') || '').trim();
+      if (effectivePhone) setCustomerPhone(effectivePhone);
+    }
+    let effectiveFlat = flat.trim();
+    let effectiveStreet = street.trim();
+    let effectivePincode = pincode.trim();
+    if ((!effectiveFlat || !effectiveStreet) && typeof window !== 'undefined') {
+      try {
+        const stored = JSON.parse(
+          localStorage.getItem('jr_selected_address') || localStorage.getItem('jr_customer_address') || '{}'
+        );
+        if (stored.flat && !effectiveFlat) {
+          effectiveFlat = stored.flat;
+          setFlat(stored.flat);
+        }
+        if (stored.street && !effectiveStreet) {
+          effectiveStreet = stored.street;
+          setStreet(stored.street);
+        }
+        if (stored.pincode && !effectivePincode) {
+          effectivePincode = stored.pincode;
+          setPincode(stored.pincode);
+        }
+      } catch {}
+    }
+
     // If phone or address details are missing, ask user to fill once
-    if (!customerPhone.trim() || !flat.trim() || !street.trim() || !pincode.trim()) {
-      if (!flat.trim() || !street.trim()) {
+    if (!effectivePhone || !effectiveFlat || !effectiveStreet || !effectivePincode) {
+      if (!effectiveFlat || !effectiveStreet) {
         setIsMapModalOpen(true);
         showToast('Please select your delivery location on the map.', true);
       } else {
@@ -598,6 +627,7 @@ export default function CartPage() {
     } catch (err: any) {
       setPlacingOrder(false);
       isSubmittingOrderRef.current = false;
+      orderIdempotencyKeyRef.current = null;
 
       const isNetworkError =
         (typeof navigator !== 'undefined' && !navigator.onLine) ||
@@ -735,16 +765,8 @@ export default function CartPage() {
             </div>
           </div>
 
-          {/* Right: Address Change Button & Profile / Login button */}
+          {/* Right: Profile / Login button */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsMapModalOpen(true)}
-              className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-200 transition-colors shrink-0 flex items-center gap-0.5"
-            >
-              <span>Change</span>
-              <span className="material-symbols-outlined text-[13px]">expand_more</span>
-            </button>
 
             {/* Profile / Account Link */}
             {currentUser ? (

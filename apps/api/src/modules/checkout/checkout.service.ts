@@ -357,6 +357,66 @@ export class CheckoutService {
       if (cachedResult && cachedResult.expiry > Date.now()) {
         return cachedResult.result;
       }
+
+      // Check if an order already exists with this idempotency key in the database
+      const existing = await this.prisma.order.findUnique({
+        where: { idempotencyKey },
+        select: {
+          id: true,
+          orderNumber: true,
+          trackingToken: true,
+          status: true,
+          paymentMethod: true,
+          totalAmountPaise: true,
+          customerPhone: true,
+        },
+      });
+
+      if (existing) {
+        if (existing.paymentMethod === 'PHONEPE') {
+          const attemptsCount = await this.prisma.paymentAttempt.count({
+            where: { orderId: existing.id },
+          });
+          const phonePeRes = await this.phonePeService.initiatePayment({
+            orderNumber: existing.orderNumber,
+            attemptNumber: attemptsCount + 1,
+            amountPaise: existing.totalAmountPaise,
+            customerPhone: existing.customerPhone,
+            trackingToken: existing.trackingToken,
+          });
+
+          await this.prisma.paymentAttempt.create({
+            data: {
+              orderId: existing.id,
+              provider: 'PHONEPE',
+              providerOrderId: phonePeRes.merchantTransactionId,
+              amountPaise: existing.totalAmountPaise,
+              currency: 'INR',
+              status: 'PENDING',
+              signatureVerified: false,
+            },
+          });
+
+          const res = {
+            orderId: existing.id,
+            orderNumber: existing.orderNumber,
+            trackingToken: existing.trackingToken,
+            status: existing.status,
+            phonepeRedirectUrl: phonePeRes.redirectUrl,
+          };
+          this.idempotencyCache.set(idempotencyKey, { result: res, expiry: Date.now() + 10 * 60 * 1000 });
+          return res;
+        }
+
+        const res = {
+          orderId: existing.id,
+          orderNumber: existing.orderNumber,
+          trackingToken: existing.trackingToken,
+          status: existing.status,
+        };
+        this.idempotencyCache.set(idempotencyKey, { result: res, expiry: Date.now() + 10 * 60 * 1000 });
+        return res;
+      }
     }
 
     const cached = await this.loadQuote(dto.quoteToken);
@@ -517,6 +577,12 @@ export class CheckoutService {
         });
       } catch (err) {
         this.logger.error(`PhonePe payment initiation failed: ${(err as Error).message}`);
+        // Clean up created order record so database is not left in an unpayable state
+        try {
+          await this.prisma.$executeRawUnsafe(`
+            DELETE FROM orders WHERE id = '${orderId}';
+          `);
+        } catch {}
         throw new BadRequestException(`PhonePe payment error: ${(err as Error).message}`);
       }
     } else if (dto.paymentMethod === 'RAZORPAY') {

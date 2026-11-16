@@ -15,28 +15,26 @@ const OLA_MAPS_API_KEY =
 
 const OLA_VECTOR_STYLE = `https://api.olamaps.io/tiles/vector/v1/styles/default-light-standard/style.json?api_key=${OLA_MAPS_API_KEY}`;
 
-// Fallback raster style for MapLibre in case of network or API outage
+// Clean OpenStreetMap fallback style in case of network disconnect (100% free, zero watermark)
 const FALLBACK_STYLE: any = {
   version: 8,
   sources: {
-    'carto-tiles': {
+    'osm-tiles': {
       type: 'raster',
       tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       ],
       tileSize: 256,
-      attribution: '© CARTO © OpenStreetMap',
+      attribution: '© OpenStreetMap contributors',
     },
   },
   layers: [
     {
-      id: 'carto-layer',
+      id: 'osm-layer',
       type: 'raster',
-      source: 'carto-tiles',
+      source: 'osm-tiles',
       minzoom: 0,
-      maxzoom: 20,
+      maxzoom: 19,
     },
   ],
 };
@@ -71,6 +69,19 @@ export default function PinpointLeafletMap({
         center: [lng, lat],
         zoom: 16,
         attributionControl: false,
+        transformRequest: (url: string) => {
+          let resolvedUrl = url;
+          if (resolvedUrl.startsWith('/')) {
+            resolvedUrl = `https://api.olamaps.io${resolvedUrl}`;
+          }
+          if (resolvedUrl.includes('api.olamaps.io')) {
+            const separator = resolvedUrl.includes('?') ? '&' : '?';
+            if (!resolvedUrl.includes('api_key=')) {
+              return { url: `${resolvedUrl}${separator}api_key=${OLA_MAPS_API_KEY}` };
+            }
+          }
+          return { url: resolvedUrl };
+        },
       });
 
       mapRef.current = map;

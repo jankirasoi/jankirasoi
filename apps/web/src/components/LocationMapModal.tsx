@@ -344,8 +344,10 @@ export default function LocationMapModal({
   // Confirm and persist location
   const handleConfirmLocation = () => {
     if (!isWithin15Km) {
-      alert(`Delivery is not available beyond 15 km from Sagore Kitchen. Selected location is ~${distanceKm} km away.`);
-      return;
+      const proceed = window.confirm(
+        `Note: Selected location is ~${distanceKm} km away (outside standard 15 km Sagore zone). Do you want to proceed with this address?`
+      );
+      if (!proceed) return;
     }
 
     const confirmedLocation: LocationData = {
@@ -719,37 +721,7 @@ export default function LocationMapModal({
             {/* 2. Map Canvas (Takes top ~55% of viewport) */}
             <div className="relative w-full h-[320px] sm:h-[360px] bg-slate-100 overflow-hidden shrink-0">
               
-              {/* Distance from Sagore Kitchen Badge */}
-              <div className="absolute top-16 left-3 z-10 flex flex-wrap items-center gap-1.5 max-w-[calc(100%-24px)]">
-                {isWithin5Km ? (
-                  <div className="px-3 py-1 rounded-full bg-emerald-700/95 text-white text-[10px] font-bold shadow-md flex items-center gap-1 backdrop-blur-xs">
-                    <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                    <span>~{distanceKm} km from Sagore Kitchen • Free Delivery</span>
-                  </div>
-                ) : isWithin15Km ? (
-                  <div className="px-3 py-1 rounded-full bg-amber-600/95 text-white text-[10px] font-bold shadow-md flex items-center gap-1 backdrop-blur-xs">
-                    <span className="material-symbols-outlined text-[13px]">info</span>
-                    <span>~{distanceKm} km • Delivery Fee ₹35 (Beyond 5 km)</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="px-3 py-1 rounded-full bg-rose-600/95 text-white text-[10px] font-bold shadow-md flex items-center gap-1 backdrop-blur-xs animate-pulse">
-                      <span className="material-symbols-outlined text-[13px]">cancel</span>
-                      <span>~{distanceKm} km • Outside 15 km Zone</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => selectLocation(22.6288, 75.5684, 'Sagore Main Market, Pithampur, MP 454774', '454774')}
-                      className="px-3 py-1 rounded-full bg-white text-emerald-800 border border-emerald-400 text-[10px] font-extrabold shadow-md flex items-center gap-1 active:scale-95 hover:bg-emerald-50 transition-all shrink-0"
-                    >
-                      <span className="material-symbols-outlined text-[13px] text-emerald-700">near_me</span>
-                      <span>Sagore Set Karein</span>
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* Interactive Pinpoint Leaflet Map (CartoDB tiles, 0 quota cost, draggable) */}
+              {/* Interactive Pinpoint Leaflet Map (MapLibre vector tiles with Ola Maps) */}
               <PinpointLeafletMap
                 lat={lat}
                 lng={lng}
@@ -757,22 +729,7 @@ export default function LocationMapModal({
                 height="100%"
               />
 
-              {/* Open in Google Maps Link (Bottom Left) */}
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="absolute bottom-3 left-3 z-10 px-3 py-1.5 rounded-full bg-white text-slate-800 hover:text-slate-900 text-[11px] font-bold shadow-lg border border-slate-200/90 flex items-center gap-1.5 transition-all active:scale-95 hover:bg-slate-50"
-                title="Open in Google Maps App or Web"
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#EA4335"/>
-                  <circle cx="12" cy="9" r="2.5" fill="#FFFFFF"/>
-                </svg>
-                <span>Google Maps</span>
-              </a>
-
-              {/* Floating "Current location" Button (Screenshot 2) */}
+              {/* Floating "Current location" Button (Clean, bottom right) */}
               <button
                 type="button"
                 onClick={handleUseCurrentLocation}
@@ -786,7 +743,7 @@ export default function LocationMapModal({
               </button>
             </div>
 
-            {/* 3. Bottom Sheet Address Details (Screenshot 2) */}
+            {/* 3. Bottom Sheet Address Details */}
             <div className="flex-1 bg-white p-4 sm:p-5 flex flex-col justify-between overflow-y-auto no-scrollbar border-t border-slate-100">
               <div className="flex flex-col gap-2.5">
                 
@@ -804,38 +761,6 @@ export default function LocationMapModal({
                     </p>
                   </div>
                 </div>
-
-                {/* Out of Zone / Telecom Network IP Notice with 1-Tap Presets */}
-                {!isWithin15Km && (
-                  <div className="p-3 bg-amber-50 border border-amber-200/90 rounded-2xl flex flex-col gap-2">
-                    <div className="flex items-start gap-2">
-                      <span className="material-symbols-outlined text-amber-700 text-[18px] shrink-0 mt-0.5">
-                        wrong_location
-                      </span>
-                      <div className="min-w-0">
-                        <span className="font-extrabold text-xs text-amber-900 block">
-                          Network Location Detected (~{Math.round(distanceKm)} km Dur)
-                        </span>
-                        <span className="text-[11px] text-amber-800 leading-tight block mt-0.5">
-                          Internet Provider ne Bhopal/Dur ki location di hai. Janki Rasoi Sagore & Pithampur (15 km zone) me deliver karta hai:
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 pt-0.5">
-                      {SAGORE_PRESETS.map((p) => (
-                        <button
-                          key={p.name}
-                          type="button"
-                          onClick={() => selectLocation(p.lat, p.lng, `${p.name}, ${p.area}`, p.pincode)}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold shadow-2xs active:scale-95 transition-all flex items-center gap-1"
-                        >
-                          <span className="material-symbols-outlined text-[13px]">location_on</span>
-                          <span>{p.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {/* Flat & Landmark Details */}
                 <div className="grid grid-cols-2 gap-2 pt-1">
@@ -888,35 +813,15 @@ export default function LocationMapModal({
 
               </div>
 
-              {/* Big Primary Action Button: "Confirm & proceed" (Screenshot 2) */}
+              {/* Big Primary Action Button: "Confirm & proceed" */}
               <div className="pt-3 border-t border-slate-100 mt-2">
                 <button
                   type="button"
                   onClick={handleConfirmLocation}
-                  disabled={!isWithin15Km}
-                  className={`w-full py-3.5 px-4 rounded-xl font-extrabold text-sm sm:text-base text-white shadow-md active:scale-98 transition-all flex items-center justify-center gap-2 ${
-                    !isWithin15Km
-                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
-                      : 'bg-[#E25822] hover:bg-[#D04B18]'
-                  }`}
+                  className="w-full py-3.5 px-4 rounded-xl font-extrabold text-sm sm:text-base text-white shadow-md active:scale-98 transition-all flex items-center justify-center gap-2 bg-[#E25822] hover:bg-[#D04B18]"
                 >
-                  <span>
-                    {!isWithin15Km
-                      ? `Delivery Not Available (>15 km: ~${distanceKm} km)`
-                      : 'Confirm & proceed'}
-                  </span>
+                  <span>Confirm & proceed</span>
                 </button>
-
-                {!isWithin15Km && (
-                  <button
-                    type="button"
-                    onClick={() => selectLocation(22.6288, 75.5684, 'Sagore Main Market, Pithampur, MP 454774', '454774')}
-                    className="w-full mt-2 py-2.5 px-4 rounded-xl border border-emerald-600 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-colors active:scale-98"
-                  >
-                    <span className="material-symbols-outlined text-[16px] text-emerald-700">check_circle</span>
-                    <span>Sagore Kitchen Delivery Zone Chunein (Free Delivery)</span>
-                  </button>
-                )}
               </div>
 
             </div>
