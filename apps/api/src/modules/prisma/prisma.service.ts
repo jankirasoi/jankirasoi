@@ -60,7 +60,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       try {
         const parsed = new URL(databaseUrl);
         const user = parsed.username || 'postgres';
-        const projectRef = configService.get<string>('SUPABASE_PROJECT_REF') || (user.includes('.') ? user.split('.')[1] : (parsed.hostname.includes('.supabase.') ? parsed.hostname.split('.')[0] : 'yxvwgcjavxeqsttzcbty'));
+        const match = parsed.hostname.match(/([a-z0-9]{20})/);
+        const projectRef = configService.get<string>('SUPABASE_PROJECT_REF') || (match ? match[1] : 'yxvwgcjavxeqsttzcbty');
         const poolerUser = user.includes('.') ? user : `${user}.${projectRef}`;
         const pass = parsed.password ? `:${encodeURIComponent(parsed.password)}` : '';
         const poolSize = configService.get<string>('DATABASE_POOL_SIZE') || '15';
