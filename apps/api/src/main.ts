@@ -59,6 +59,8 @@ async function bootstrap() {
 
   // CORS configuration supporting localhost, mobile LAN IP, and production Vercel / custom domains
   const allowedOrigins = [
+    'https://jankirasoi.com',
+    'https://www.jankirasoi.com',
     'https://jankirasoi.in',
     'https://www.jankirasoi.in',
     process.env.FRONTEND_URL,
