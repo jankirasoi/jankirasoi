@@ -91,7 +91,10 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: 'YaZ4S2I5I3-WgqvlPtgTKhLKSm3P2dXQhZsXmcOxyBw',
+    google: [
+      'exd8uIz1JksQzk6F4ERwkbgqG0nXmQg4UOIy36qaGKY',
+      'YaZ4S2I5I3-WgqvlPtgTKhLKSm3P2dXQhZsXmcOxyBw',
+    ],
   },
   manifest: '/manifest.json',
   icons: {
@@ -218,6 +221,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <meta
+          name="google-site-verification"
+          content="exd8uIz1JksQzk6F4ERwkbgqG0nXmQg4UOIy36qaGKY"
+        />
         <meta
           name="google-site-verification"
           content="YaZ4S2I5I3-WgqvlPtgTKhLKSm3P2dXQhZsXmcOxyBw"
