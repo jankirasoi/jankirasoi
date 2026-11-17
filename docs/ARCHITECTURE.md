@@ -190,7 +190,8 @@ sequenceDiagram
 
 ### 5.1. Authentication & Session Management
 - **Customer:** Anonymous / Guest checkout is first-class. Orders are tracked via high-entropy `tracking_token` (UUIDv4/NanoID) returned at checkout.
-- **Admin & Rider:** Authenticated via email/password or phone/password.
+- **Admin:** Authenticated via registered administrative email and secure password (`admin@jankirasoi.com`).
+- **Rider:** Authenticated purely via 10-digit mobile phone number and shift PIN/password. Riders do not have, require, or display mock emails.
 - **Session Tokens:** Issued as `HttpOnly`, `Secure`, `SameSite=Lax` cookies. No access tokens in browser `localStorage`.
 - **RBAC Enforcement:** NestJS `@Roles('ADMIN', 'STAFF', 'RIDER')` guards applied at the controller and route level. UI visibility is cosmetic; server endpoints reject unauthorized requests unconditionally.
 
