@@ -12,32 +12,11 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { totalCount } = useCart();
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    if (typeof window === 'undefined') return null;
-    const token = localStorage.getItem('jr_session_token');
-    if (!token) return null;
-    const cached = localStorage.getItem('jr_user_profile');
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (parsed?.role === 'CUSTOMER') return parsed;
-      } catch {}
-    }
-    return null;
-  });
+  // ponytail: avoid SSR hydration mismatch by initializing to server defaults and syncing localStorage in useEffect
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
-  const [locationName, setLocationName] = useState(() => {
-    if (typeof window === 'undefined') return 'Sagore, Pithampur';
-    try {
-      const stored = localStorage.getItem('jr_selected_address');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return parsed.street?.split(',')[0] || parsed.flat || parsed.city || 'Sagore, Pithampur';
-      }
-    } catch {}
-    return 'Sagore, Pithampur';
-  });
+  const [locationName, setLocationName] = useState('Sagore, Pithampur');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Instant 0ms session sync on mount and on storage/auth events
@@ -194,7 +173,7 @@ export default function Header() {
                 DELIVER TO
               </span>
               <div className="flex items-center gap-0.5 min-w-0">
-                <span className="text-[11px] sm:text-xs font-bold text-[#292D26] truncate">
+                <span suppressHydrationWarning className="text-[11px] sm:text-xs font-bold text-[#292D26] truncate">
                   {locationName}
                 </span>
                 <span className="material-symbols-outlined text-[13px] sm:text-[15px] text-[#77786F] shrink-0">
