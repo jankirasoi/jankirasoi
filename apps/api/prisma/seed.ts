@@ -39,7 +39,8 @@ async function main() {
   console.log('🌱 Starting Janki Rasoi Database Seed...');
 
   // 1. Seed Super Admin
-  const adminPasswordHash = await bcrypt.hash('JankiAdmin@2026', 10);
+  const adminPassword = process.env.ADMIN_SEED_PASSWORD || 'JankiAdmin@2026';
+  const adminPasswordHash = await bcrypt.hash(adminPassword, 10);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@jankirasoi.com' },
     update: { passwordHash: adminPasswordHash, isActive: true, role: UserRole.ADMIN },
@@ -67,7 +68,8 @@ async function main() {
   console.log(`👤 Super Admin verified: ${admin.email}`);
 
   // 2. Seed Delivery Rider
-  const riderPasswordHash = await bcrypt.hash('RiderPassword123!', 10);
+  const riderPassword = process.env.RIDER_SEED_PASSWORD || 'RiderPassword123!';
+  const riderPasswordHash = await bcrypt.hash(riderPassword, 10);
   const riderUser = await prisma.user.upsert({
     where: { phone: '9811223344' },
     update: { passwordHash: riderPasswordHash },

@@ -21,10 +21,15 @@ for (const line of envContent.split('\n')) {
   }
 }
 
-const CLOUDINARY_CLOUD_NAME = env.CLOUDINARY_CLOUD_NAME || 'mdax5iq1';
-const CLOUDINARY_API_KEY = env.CLOUDINARY_API_KEY || '377468287594998';
-const CLOUDINARY_API_SECRET = env.CLOUDINARY_API_SECRET || '4e5No7gnBQ-KMO9B6Z3wwawJ3mg';
+const CLOUDINARY_CLOUD_NAME = env.CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_API_KEY = env.CLOUDINARY_API_KEY;
+const CLOUDINARY_API_SECRET = env.CLOUDINARY_API_SECRET;
 const DATABASE_URL = env.DATABASE_URL;
+
+if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+  console.error('Missing CLOUDINARY credentials in .env');
+  process.exit(1);
+}
 
 if (!DATABASE_URL) {
   console.error('Missing DATABASE_URL in .env');
