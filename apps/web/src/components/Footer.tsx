@@ -99,11 +99,11 @@ export default function Footer() {
             <ul className="flex flex-col gap-2 text-xs">
               <li>
                 <a
-                  href="tel:+919755554774"
+                  href="tel:+918319014108"
                   className="flex items-center gap-1.5 text-[#292D26] hover:text-[#38754A] transition-colors font-medium"
                 >
                   <span className="material-symbols-outlined text-[16px] text-[#38754A]">call</span>
-                  <span>+91 97555 54774</span>
+                  <span>+91 83190 14108</span>
                 </a>
               </li>
               <li>
@@ -117,7 +117,7 @@ export default function Footer() {
               </li>
               <li>
                 <a
-                  href="https://wa.me/919755554774?text=Hi%20Janki%20Rasoi,%20I%20have%20an%20order%20query"
+                  href="https://wa.me/918319014108?text=Hi%20Janki%20Rasoi,%20I%20have%20an%20order%20query"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EAF4ED] text-[#38754A] font-semibold hover:bg-[#d8edd6] transition-colors mt-1"

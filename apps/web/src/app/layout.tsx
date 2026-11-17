@@ -141,7 +141,7 @@ const jsonLd = {
       ],
       contactPoint: {
         '@type': 'ContactPoint',
-        telephone: '+91-9876543210',
+        telephone: '+91-8319014108',
         contactType: 'customer service',
         areaServed: 'IN',
         availableLanguage: ['Hindi', 'English'],
@@ -166,7 +166,7 @@ const jsonLd = {
         'Janki Rasoi is the premier pure vegetarian tiffin center and homestyle kitchen in Sagore & Pithampur. We deliver 100% pure vegetarian homestyle thalis, daily office & student tiffins, and nutritious home-cooked meals.',
       servesCuisine: ['North Indian', 'Pure Vegetarian', 'Tiffin', 'Thali', 'Home Cooked'],
       priceRange: '₹₹',
-      telephone: '+91 98765 43210',
+      telephone: '+91 83190 14108',
       email: 'care@jankirasoi.com',
       parentOrganization: { '@id': `${siteUrl}/#organization` },
       address: {

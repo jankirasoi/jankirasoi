@@ -40,7 +40,7 @@ export default function NotFound() {
         </div>
 
         <div className="pt-2 text-xs text-[#77786F]">
-          Need help? <a href="tel:+919755554774" className="text-[#38754A] font-bold underline">Call Kitchen Desk: +91 97555 54774</a>
+          Need help? <a href="tel:+918319014108" className="text-[#38754A] font-bold underline">Call Kitchen Desk: +91 83190 14108</a>
         </div>
       </div>
     </main>

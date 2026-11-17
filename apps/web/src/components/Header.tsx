@@ -316,7 +316,7 @@ export default function Header() {
 
                   {/* WhatsApp Kitchen Support */}
                   <a
-                    href="https://wa.me/919755554774?text=Hi%20Janki%20Rasoi,%20I%20have%20a%20query%20about%20my%20tiffin%20order"
+                    href="https://wa.me/918319014108?text=Hi%20Janki%20Rasoi,%20I%20have%20a%20query%20about%20my%20tiffin%20order"
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setIsDropdownOpen(false)}
