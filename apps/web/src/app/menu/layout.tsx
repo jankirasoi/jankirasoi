@@ -1,14 +1,16 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: "Today's Fresh Menu & Catering | Janki Rasoi Sagore",
+  title: "Today's Fresh Menu & Tiffin Plans | Janki Rasoi Sagore",
   description:
-    "Explore today's freshly prepared pure vegetarian menu at Janki Rasoi Sagore. Special North Indian thalis, parathas, sabzi bowls, and bulk catering service orders in Sagore & Pithampur.",
+    "Explore today's freshly prepared pure vegetarian menu and daily tiffin center service at Janki Rasoi Sagore. Special North Indian thalis, parathas, sabzi bowls, and daily lunch/dinner tiffins in Sagore & Pithampur.",
   keywords: [
     'janki rasoi menu',
     'janki rasoi sagore menu',
-    'sagore catreen sevice',
-    'sagore catering menu',
+    'sagore tiffin center',
+    'sagore tiffine center',
+    'tiffin center sagore',
+    'best tiffin service sagore',
     'best kichen service sagore thali',
     'veg food sagore pithampur',
     'tiffin menu sagore',
@@ -17,9 +19,9 @@ export const metadata: Metadata = {
     canonical: '/menu',
   },
   openGraph: {
-    title: "Today's Fresh Menu & Catering | Janki Rasoi Sagore",
+    title: "Today's Fresh Menu & Tiffin Plans | Janki Rasoi Sagore",
     description:
-      'Daily freshly prepared pure vegetarian North Indian thalis, homestyle meals, and catering services in Sagore & Pithampur.',
+      'Daily freshly prepared pure vegetarian North Indian thalis, homestyle meals, and daily tiffin center service in Sagore & Pithampur.',
     url: 'https://jankirasoi.com/menu',
   },
 };

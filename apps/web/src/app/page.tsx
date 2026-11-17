@@ -224,7 +224,7 @@ export default function HomePage() {
                   <span className="w-2 h-2 rounded-full bg-[#38754A]"></span>
                 </span>
                 <span className="text-[11px] sm:text-xs text-[#EAF4ED] tracking-wide uppercase font-bold">
-                  Janki Rasoi Sagore • Best Kitchen &amp; Catering Service
+                  Janki Rasoi Sagore • Best Tiffin Center &amp; Kitchen Service
                 </span>
               </div>
               <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white leading-tight drop-shadow-sm font-headline">
@@ -232,7 +232,7 @@ export default function HomePage() {
                 Ghar Jaisa Khana, Har Din!
               </h1>
               <p className="hidden sm:block text-xs sm:text-sm text-white/90 font-medium mt-1 drop-shadow-xs max-w-xl">
-                Pure vegetarian homestyle thalis, daily tiffins &amp; Sagore catering service. Freshly cooked, hygienically packed, delivered hot in Sagore &amp; Pithampur.
+                Sagore Tiffin Center - Pure vegetarian homestyle daily lunch &amp; dinner tiffins, executive thalis, delivered hot in Sagore &amp; Pithampur.
               </p>
             </div>
           </div>
@@ -499,8 +499,8 @@ export default function HomePage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-[#EEE7DC]">
             <div>
               <h2 className="text-base sm:text-lg font-bold text-[#292D26] font-headline flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#38754A] text-[22px]">restaurant</span>
-                <span>Janki Rasoi Sagore • Best Kitchen &amp; Catering Service</span>
+                <span className="material-symbols-outlined text-[#38754A] text-[22px]">lunch_dining</span>
+                <span>Janki Rasoi Sagore • Best Tiffin Center &amp; Kitchen Service</span>
               </h2>
               <p className="text-xs text-[#77786F] mt-0.5">
                 Sagore, Pithampur Industrial Area, Dhar &amp; Nearby Localities
@@ -511,35 +511,35 @@ export default function HomePage() {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EAF4ED] text-[#38754A] text-xs font-bold hover:bg-[#d8edd6] transition-colors shrink-0"
             >
               <span className="material-symbols-outlined text-[16px]">call</span>
-              <span>Order on Call / Catering Enquiry</span>
+              <span>Order Tiffin / Tiffin Enquiry</span>
             </a>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-4 text-xs">
             <div className="p-3 rounded-xl bg-[#FFF9F0] border border-[#EEE7DC]/60 flex flex-col gap-1">
               <span className="font-bold text-[#292D26] flex items-center gap-1.5">
-                <span className="text-base">🍱</span> Best Kitchen Service in Sagore
+                <span className="text-base">🍱</span> Best Tiffin Center in Sagore
               </span>
               <p className="text-[#77786F] leading-relaxed">
-                Daily freshly prepared pure vegetarian North Indian meals, executive thalis, and quick doorstep food delivery in Sagore.
+                Daily freshly prepared pure vegetarian North Indian tiffins, executive thalis, and quick doorstep delivery in Sagore &amp; Pithampur.
               </p>
             </div>
 
             <div className="p-3 rounded-xl bg-[#FFF9F0] border border-[#EEE7DC]/60 flex flex-col gap-1">
               <span className="font-bold text-[#292D26] flex items-center gap-1.5">
-                <span className="text-base">🎉</span> Sagore Catering Service (कैटरिंग)
+                <span className="text-base">🛵</span> Sagore Tiffin Center (टिफिन सेंटर)
               </span>
               <p className="text-[#77786F] leading-relaxed">
-                Reliable catering service for corporate lunches, birthdays, events &amp; family gatherings in Sagore and Pithampur.
+                Affordable monthly &amp; daily tiffin delivery service for office staff, factory workers, and students in Sagore &amp; Pithampur.
               </p>
             </div>
 
             <div className="p-3 rounded-xl bg-[#FFF9F0] border border-[#EEE7DC]/60 flex flex-col gap-1">
               <span className="font-bold text-[#292D26] flex items-center gap-1.5">
-                <span className="text-base">🌿</span> 100% Shuddh Shakahari
+                <span className="text-base">🌿</span> 100% Shuddh Shakahari Ghar Ka Swad
               </span>
               <p className="text-[#77786F] leading-relaxed">
-                Hygienic kitchen, zero artificial colors, cooked in premium oils with fresh vegetables sourced daily.
+                Hygienic kitchen, healthy oils, fresh rotis, dal, seasonal sabzi, rice, and salad packed in clean insulated tiffins.
               </p>
             </div>
           </div>

@@ -27,13 +27,13 @@ export default function Footer() {
                   Janki Rasoi Sagore
                 </span>
                 <span className="text-[11px] text-[#77786F] font-medium">
-                  Best Kitchen &amp; Catering Service
+                  Best Tiffin Center &amp; Kitchen Service
                 </span>
               </div>
             </Link>
 
             <p className="text-xs text-[#77786F] leading-relaxed mt-1">
-              <strong>Janki Rasoi Sagore</strong> - The best kitchen service &amp; catering service in Sagore &amp; Pithampur. Nutritious, daily freshly cooked pure vegetarian thalis, tiffins, and bulk catering orders.
+              <strong>Janki Rasoi Sagore</strong> - The best pure vegetarian tiffin center &amp; kitchen service in Sagore &amp; Pithampur. Nutritious, daily freshly cooked home-style thalis and tiffins delivered hot.
             </p>
 
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#EAF4ED] text-[#38754A] text-xs font-semibold w-fit border border-[#38754A]/20">
@@ -91,7 +91,7 @@ export default function Footer() {
           {/* 3. Kitchen Hours & Area */}
           <div className="flex flex-col gap-2.5">
             <span className="text-xs font-bold uppercase tracking-wider text-[#77786F]">
-              Kitchen &amp; Catering Hours
+              Tiffin &amp; Kitchen Hours
             </span>
             <div className="flex flex-col gap-2 text-xs text-[#77786F]">
               <div>
@@ -99,8 +99,8 @@ export default function Footer() {
                 <span>11:00 AM - 11:00 PM (Daily Fresh Batch Deliveries)</span>
               </div>
               <div>
-                <span className="font-semibold text-[#292D26] block">Sagore Catering Service</span>
-                <span>Party, Wedding &amp; Bulk Orders Welcome</span>
+                <span className="font-semibold text-[#292D26] block">Sagore Tiffin Center</span>
+                <span>Daily Fresh Lunch &amp; Dinner Tiffins</span>
               </div>
               <div className="pt-1 text-[11px]">
                 <span className="text-[#38754A] font-semibold">Service Zone:</span> Sagore, Pithampur Industrial Area, Sector 1-3 &amp; Nearby Localities
