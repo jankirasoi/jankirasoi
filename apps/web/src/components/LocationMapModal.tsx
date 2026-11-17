@@ -513,9 +513,13 @@ export default function LocationMapModal({
                 className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-2xs hover:border-[#38754A] transition-all flex flex-col items-start justify-between min-h-[96px] text-left group active:scale-98 cursor-pointer"
               >
                 <div className="w-8 h-8 rounded-xl bg-[#EAF4ED] text-[#38754A] flex items-center justify-center font-bold">
-                  <span className={`material-symbols-outlined text-[18px] ${isGpsLoading ? 'animate-spin' : ''}`}>
-                    {isGpsLoading ? 'progress_activity' : 'my_location'}
-                  </span>
+                  {isGpsLoading ? (
+                    <span className="w-4 h-4 border-2 border-[#38754A] border-t-transparent rounded-full animate-spin shrink-0" />
+                  ) : (
+                    <span className="material-symbols-outlined text-[18px]">
+                      my_location
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-xs font-bold text-slate-800 leading-tight block">
@@ -746,10 +750,14 @@ export default function LocationMapModal({
                 disabled={isGpsLoading}
                 className="absolute bottom-3 right-3 z-10 px-3.5 py-2 rounded-full bg-white text-slate-800 text-xs font-bold shadow-lg border border-slate-200/80 flex items-center gap-1.5 hover:bg-slate-50 active:scale-95 transition-all"
               >
-                <span className={`material-symbols-outlined text-[17px] text-[#E25822] ${isGpsLoading ? 'animate-spin' : ''}`}>
-                  {isGpsLoading ? 'sync' : 'my_location'}
-                </span>
-                <span>Current location</span>
+                {isGpsLoading ? (
+                  <span className="w-4 h-4 border-2 border-[#E25822] border-t-transparent rounded-full animate-spin shrink-0" />
+                ) : (
+                  <span className="material-symbols-outlined text-[17px] text-[#E25822] shrink-0">
+                    my_location
+                  </span>
+                )}
+                <span>{isGpsLoading ? 'Locating...' : 'Current location'}</span>
               </button>
             </div>
 
