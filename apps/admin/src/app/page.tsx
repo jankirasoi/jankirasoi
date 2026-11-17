@@ -469,6 +469,50 @@ function OrderDetailsPanel({
 }
 
 export default function OperationsConsolePage() {
+  // Staff Auth Guard State
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [checkingAuth, setCheckingAuth] = useState<boolean>(true);
+  const [adminEmail, setAdminEmail] = useState('admin@jankirasoi.com');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [adminLoginLoading, setAdminLoginLoading] = useState(false);
+  const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('jr_admin_token');
+      if (token) {
+        setIsAuthenticated(true);
+      }
+    }
+    setCheckingAuth(false);
+  }, []);
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminEmail.trim() || !adminPassword) {
+      setAdminLoginError('Please enter admin email and password.');
+      return;
+    }
+    setAdminLoginLoading(true);
+    setAdminLoginError(null);
+    try {
+      await adminApi.login(adminEmail, adminPassword);
+      setIsAuthenticated(true);
+      showToast('Staff authentication successful!');
+    } catch (err: any) {
+      setAdminLoginError(err.message || 'Invalid credentials.');
+    } finally {
+      setAdminLoginLoading(false);
+    }
+  };
+
+  const handleAdminLogout = async () => {
+    await adminApi.logout();
+    setIsAuthenticated(false);
+    showToast('Signed out of Operations Console.');
+  };
+
   // Navigation Module View matching target reference image
   const [mainView, setMainView] = useState<'ORDERS' | 'CUSTOMERS' | 'RIDERS' | 'MENU' | 'REPORTS' | 'SETTINGS'>('ORDERS');
 
@@ -1772,6 +1816,103 @@ export default function OperationsConsolePage() {
     );
   };
 
+  if (checkingAuth) {
+    return (
+      <div className="h-screen bg-[#FFF9F0] flex flex-col items-center justify-center p-6 text-stone-800">
+        <div className="w-10 h-10 border-4 border-emerald-700 border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-4 text-xs font-bold text-stone-600 tracking-wider uppercase">Loading Kitchen Operations Console...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="h-screen bg-[#FFF9F0] flex flex-col items-center justify-center p-4 font-sans text-slate-800">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-xl border border-amber-200/80 flex flex-col gap-5">
+          <div className="text-center flex flex-col items-center gap-2">
+            <div className="w-14 h-14 rounded-2xl bg-[#1D5C34] text-white flex items-center justify-center shadow-md">
+              <span className="material-symbols-outlined text-[32px]">shield_person</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              Kitchen Operations Console
+            </h1>
+            <p className="text-xs text-slate-500">
+              Janki Rasoi • Staff &amp; Admin Sign In (Port 3002)
+            </p>
+          </div>
+
+          {adminLoginError && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl p-3 flex items-start gap-2">
+              <span className="material-symbols-outlined text-[18px] shrink-0 text-rose-600">error</span>
+              <span>{adminLoginError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleAdminLogin} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Staff Email
+              </label>
+              <input
+                type="email"
+                required
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                placeholder="admin@jankirasoi.com"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-[#1D5C34] text-sm font-medium outline-none"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showAdminPassword ? 'text' : 'password'}
+                  required
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Enter admin password"
+                  className="w-full px-3.5 pr-10 py-2.5 rounded-xl border border-slate-200 focus:border-[#1D5C34] text-sm font-medium outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPassword(!showAdminPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    {showAdminPassword ? 'visibility_off' : 'visibility'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={adminLoginLoading}
+              className="w-full mt-1 py-3 px-6 rounded-xl bg-[#1D5C34] hover:bg-[#164828] text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {adminLoginLoading ? (
+                <span>Authenticating...</span>
+              ) : (
+                <>
+                  <span>Sign In to Console</span>
+                  <span className="material-symbols-outlined text-[18px]">lock_open</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+            <span className="material-symbols-outlined text-[14px] text-emerald-600">lock</span>
+            <span>Authorized Kitchen &amp; Management Staff Only</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen max-h-screen overflow-hidden bg-[#f8faf7] text-stone-900 flex flex-col font-body selection:bg-emerald-800 selection:text-white antialiased">
       {/* 1. TOP COMPACT HEADER */}
@@ -1848,9 +1989,19 @@ export default function OperationsConsolePage() {
           </button>
 
           {/* User Profile Avatar */}
-          <div className="w-9 h-9 rounded-full bg-emerald-900 text-white font-bold flex items-center justify-center text-xs shadow-xs cursor-pointer">
+          <div className="w-9 h-9 rounded-full bg-emerald-900 text-white font-bold flex items-center justify-center text-xs shadow-xs cursor-pointer" title="Staff User">
             JR
           </div>
+
+          {/* Logout Button */}
+          <button
+            onClick={handleAdminLogout}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-colors border border-rose-200 shrink-0"
+            title="Logout from Operations Console"
+          >
+            <span className="material-symbols-outlined text-[15px]">logout</span>
+            <span className="hidden sm:inline">Logout</span>
+          </button>
         </div>
       </header>
 

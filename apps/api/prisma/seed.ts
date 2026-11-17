@@ -39,10 +39,22 @@ async function main() {
   console.log('🌱 Starting Janki Rasoi Database Seed...');
 
   // 1. Seed Super Admin
-  const adminPasswordHash = await bcrypt.hash('AdminPassword123!', 10);
+  const adminPasswordHash = await bcrypt.hash('JankiAdmin@2026', 10);
   const admin = await prisma.user.upsert({
+    where: { email: 'admin@jankirasoi.com' },
+    update: { passwordHash: adminPasswordHash, isActive: true, role: UserRole.ADMIN },
+    create: {
+      email: 'admin@jankirasoi.com',
+      phone: '9755554774',
+      passwordHash: adminPasswordHash,
+      name: 'Janki Rasoi Admin',
+      role: UserRole.ADMIN,
+      isActive: true,
+    },
+  });
+  await prisma.user.upsert({
     where: { email: 'admin@jankirasoi.in' },
-    update: { passwordHash: adminPasswordHash },
+    update: { passwordHash: adminPasswordHash, isActive: true, role: UserRole.ADMIN },
     create: {
       email: 'admin@jankirasoi.in',
       phone: '9876543210',

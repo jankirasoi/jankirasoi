@@ -170,13 +170,33 @@ export const adminApi = {
     const res = await fetch(`${base}/admin/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email: email.trim(), password }),
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Invalid staff credentials');
+      throw new Error(err.message || 'Invalid admin credentials');
     }
-    return res.json();
+    const data = await res.json();
+    if (typeof window !== 'undefined' && data?.sessionToken) {
+      localStorage.setItem('jr_admin_token', data.sessionToken);
+      if (data.user) {
+        localStorage.setItem('jr_admin_profile', JSON.stringify(data.user));
+      }
+    }
+    return data;
+  },
+
+  // 5b. Admin Logout
+  async logout() {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('jr_admin_token');
+      localStorage.removeItem('jr_admin_profile');
+    }
+    try {
+      const base = getApiBase();
+      await fetch(`${base}/auth/logout`, { method: 'POST', credentials: 'include' });
+    } catch {}
   },
 
   // 6. Manage & View Customers

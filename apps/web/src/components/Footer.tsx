@@ -68,23 +68,6 @@ export default function Footer() {
                   Live Kitchen Order Tracking
                 </Link>
               </li>
-              <li>
-                <a
-                  href={process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:3002'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-[#38754A] transition-colors flex items-center gap-1.5"
-                >
-                  <span className="material-symbols-outlined text-[16px] text-amber-600">admin_panel_settings</span>
-                  <span>Kitchen Admin &amp; Staff KDS (Port 3002)</span>
-                </a>
-              </li>
-              <li>
-                <Link href="/rider" className="hover:text-[#38754A] transition-colors flex items-center gap-1">
-                  <span>🛵</span>
-                  <span>Rider Partner App</span>
-                </Link>
-              </li>
             </ul>
           </div>
 

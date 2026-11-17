@@ -1135,12 +1135,26 @@ export const api = {
     return data;
   },
 
-  // 15. Get Current User Profile (Customer / Rider)
-  async getCurrentUser(role: 'CUSTOMER' | 'RIDER' = 'CUSTOMER'): Promise<UserProfile | null> {
+  // 14c. Admin Logout
+  async logoutAdmin(): Promise<void> {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('jr_admin_token');
+      localStorage.removeItem('jr_admin_profile');
+    }
+    try {
+      const base = getApiBase();
+      await fetch(`${base}/auth/logout`, { method: 'POST', credentials: 'include' });
+    } catch {}
+  },
+
+  // 15. Get Current User Profile (Customer / Rider / Admin)
+  async getCurrentUser(role: 'CUSTOMER' | 'RIDER' | 'ADMIN' = 'CUSTOMER'): Promise<UserProfile | null> {
     if (typeof window === 'undefined') return null;
     const token = role === 'CUSTOMER'
       ? localStorage.getItem('jr_session_token')
-      : localStorage.getItem('jr_rider_token');
+      : role === 'RIDER'
+      ? localStorage.getItem('jr_rider_token')
+      : localStorage.getItem('jr_admin_token');
 
     // If no session token exists, the user is logged out - return null immediately
     if (!token) {
@@ -1172,6 +1186,9 @@ export const api = {
           } else if (role === 'RIDER' && data.user.role === 'RIDER') {
             localStorage.setItem('jr_rider_profile', JSON.stringify(data.user));
             return data.user;
+          } else if (role === 'ADMIN' && (data.user.role === 'ADMIN' || data.user.role === 'STAFF')) {
+            localStorage.setItem('jr_admin_profile', JSON.stringify(data.user));
+            return data.user;
           }
         }
       } else if (res.status === 401 || res.status === 403) {
@@ -1179,9 +1196,12 @@ export const api = {
         if (role === 'CUSTOMER') {
           localStorage.removeItem('jr_session_token');
           localStorage.removeItem('jr_user_profile');
-        } else {
+        } else if (role === 'RIDER') {
           localStorage.removeItem('jr_rider_token');
           localStorage.removeItem('jr_rider_profile');
+        } else if (role === 'ADMIN') {
+          localStorage.removeItem('jr_admin_token');
+          localStorage.removeItem('jr_admin_profile');
         }
         return null;
       }
